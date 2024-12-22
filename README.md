@@ -1,3 +1,10 @@
+# Things havent completed yet
+
+1. Decode (DecodeRLE, InverseZigZag, Dequantize, InverseDCT, Add128)
+2. Parallel For 3 Channel Image (Y Cb Cr)
+3. Study the Compression Metrics: PSNR, MSE, Compression Ratio
+4. Write Report about the result
+
 # Install OpenCV in C++
 
 ```bash
