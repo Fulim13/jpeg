@@ -8,6 +8,7 @@
 #include <fstream>
 #include <string>
 #include <chrono>
+#include "kernel.cuh"
 
 using namespace std;
 using namespace cv;
@@ -760,6 +761,121 @@ Mat decodeChannel(const EncodedData &encoded_data, int height, int width, const 
 
     return reconstructed;
 }
+
+EncodedData encodeChannelGPU(const Mat &channel, const vector<vector<int>> &quantization_table)
+{
+    // Extract 8x8 blocks
+    vector<vector<vector<int>>> blocks;
+    extractBlocks(channel, blocks);
+
+    // Vector to store encoded values for all blocks
+    vector<vector<int>> encoded_values;
+
+    encodeGPU(blocks, quantization_table, encoded_values);
+
+    vector<int> combined_encoded_values;
+    for (auto &block : encoded_values)
+    {
+        combined_encoded_values.insert(combined_encoded_values.end(),
+                                       block.begin(),
+                                       block.end());
+    }
+    // Build Huffman tree and codes
+    unordered_map<int, int>
+        freq_dict = build_frequency_dict(combined_encoded_values);
+    HuffmanNode *huffman_tree = build_huffman_tree(freq_dict);
+
+    unordered_map<int, string> huffman_codes;
+    generate_huffman_codes(huffman_tree, "", huffman_codes);
+
+    // Perform Huffman encoding
+    string huffman_encoded_str = huffman_encode(combined_encoded_values, huffman_codes);
+
+    return {huffman_encoded_str, huffman_tree};
+}
+
+Mat decodeChannelGPU(const EncodedData &encoded_data, int height, int width, const vector<vector<int>> &quantization_table)
+{
+    // Huffman decode
+    vector<int> decoded_values = huffman_decode(encoded_data.huffman_encoded_str,
+                                                encoded_data.huffman_tree);
+    vector<vector<int>> blocks;
+    vector<int> current_block;
+    int current_length = 0;
+
+    for (size_t i = 0; i < decoded_values.size(); i += 2)
+    {
+        int value = decoded_values[i];         // Value
+        int frequency = decoded_values[i + 1]; // Frequency
+
+        while (frequency > 0)
+        {
+            int to_add = min(64 - current_length, frequency);
+            current_block.push_back(value);
+            current_block.push_back(to_add);
+
+            current_length += to_add;
+            frequency -= to_add;
+
+            if (current_length == 64)
+            {
+                blocks.push_back(current_block);
+                current_block.clear();
+                current_length = 0;
+            }
+        }
+    }
+
+    // Add any remaining elements to the last block
+    if (!current_block.empty())
+    {
+        blocks.push_back(current_block);
+    }
+
+    vector<vector<vector<int>>> image_blocks;
+
+    decodeGPU(blocks, quantization_table, image_blocks);
+
+    // Create output matrix
+    Mat reconstructed = Mat::zeros(height, width, CV_8UC1);
+
+    // Fill the reconstructed Mat from image_blocks
+    int block_size = 8;
+    int blocks_per_row = (width + block_size - 1) / block_size;
+    int blocks_per_col = (height + block_size - 1) / block_size;
+
+    for (int block_row = 0; block_row < blocks_per_col; ++block_row)
+    {
+        for (int block_col = 0; block_col < blocks_per_row; ++block_col)
+        {
+            int block_index = block_row * blocks_per_row + block_col;
+            if (block_index >= image_blocks.size())
+                break;
+
+            // Get the current block
+            const auto &block = image_blocks[block_index];
+
+            // Place the block into the Mat
+            for (int i = 0; i < block_size; ++i)
+            {
+                for (int j = 0; j < block_size; ++j)
+                {
+                    int row = block_row * block_size + i;
+                    int col = block_col * block_size + j;
+
+                    // Ensure we don't go out of bounds
+                    if (row < height && col < width)
+                    {
+                        reconstructed.at<uchar>(row, col) = static_cast<uchar>(block[i][j]);
+                    }
+                }
+            }
+        }
+    }
+
+    return reconstructed;
+}
+
 // Function to serialize Huffman tree for storage
 void serializeHuffmanTree(HuffmanNode *root, ofstream &file)
 {
@@ -950,7 +1066,7 @@ void loadEncodedData(const string &filename,
 int main()
 {
     string folder_path = "img/";
-    string image_name = "Lenna";
+    string image_name = "test2";
     // Load and convert image
     Mat image = readImage(folder_path, image_name);
     if (image.empty())
@@ -982,9 +1098,27 @@ int main()
     auto duration_encoding = duration_cast<milliseconds>(stop_encoding - start_encoding);
     cout << "Encoding time: " << duration_encoding.count() << " ms" << endl;
 
+    // Measure encoding time
+    auto start_encoding_gpu = high_resolution_clock::now();
+
+    // Encode each channel
+    EncodedData y_encoded_gpu = encodeChannelGPU(Y, quantization_table_Y);
+    EncodedData cb_encoded_gpu = encodeChannelGPU(Cb, quantization_table_CbCr);
+    EncodedData cr_encoded_gpu = encodeChannelGPU(Cr, quantization_table_CbCr);
+
+    // Measure the end of encoding time
+    auto stop_encoding_gpu = high_resolution_clock::now();
+
+    // Print encoding time
+    auto duration_encoding_gpu = duration_cast<milliseconds>(stop_encoding_gpu - start_encoding_gpu);
+    cout << "Encoding time (GPU): " << duration_encoding_gpu.count() << " ms" << endl;
+
+    // Measure the Performance Improvement
+    cout << "Performance Improvement: " << (double)duration_encoding.count() / duration_encoding_gpu.count() << "x" << endl;
+
     // Save three encoded data (EncodedData) and ows and cols for each channel to one bin file
     saveEncodedData("compressed_image.bin",
-                    y_encoded, cb_encoded, cr_encoded,
+                    y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu,
                     Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
 
     // // Calculate compression statistics
@@ -1036,10 +1170,31 @@ int main()
     // Print decoding time
     cout << "Decoding time: " << duration_decoding.count() << " ms" << endl;
 
+    // Measure decoding time for GPU
+    auto start_decoding_gpu = high_resolution_clock::now();
+
+    // Decode each channel
+    Mat Y_reconstructed_gpu = decodeChannelGPU(y_loaded, y_rows, y_cols, quantization_table_Y);
+    Mat Cb_reconstructed_gpu = decodeChannelGPU(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr);
+    Mat Cr_reconstructed_gpu = decodeChannelGPU(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr);
+
+    // Measure the end of decoding time
+    auto end_decoding_gpu = high_resolution_clock::now();
+
+    // Calculate decoding time
+
+    auto duration_decoding_gpu = duration_cast<milliseconds>(end_decoding_gpu - start_decoding_gpu);
+
+    // Print decoding time
+    cout << "Decoding time (GPU): " << duration_decoding_gpu.count() << " ms" << endl;
+
+    // Measure the Performance Improvement
+    cout << "Performance Improvement: " << (double)duration_decoding.count() / duration_decoding_gpu.count() << "x" << endl;
+
     // Show the reconstructed images
-    imshow("Reconstructed Y Channel", Y_reconstructed);
-    imshow("Reconstructed Cb Channel", Cb_reconstructed);
-    imshow("Reconstructed Cr Channel", Cr_reconstructed);
+    imshow("Reconstructed Y Channel", Y_reconstructed_gpu);
+    imshow("Reconstructed Cb Channel", Cb_reconstructed_gpu);
+    imshow("Reconstructed Cr Channel", Cr_reconstructed_gpu);
     waitKey(0);
 
     // Merge the Y, Cb, Cr channels and convert back to BGR
