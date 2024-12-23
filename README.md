@@ -3,6 +3,13 @@
 1. Study the Compression Metrics: PSNR, MSE, Compression Ratio
 2. Write Report about the result
 
+# How to Run the Program
+
+```bash
+nvcc main_with_store_huffman_tree.cpp kernel.cu -o main `pkg-config --cflags --libs opencv4` -diag-suppress=611
+./main
+```
+
 # Install OpenCV in C++
 
 ```bash
