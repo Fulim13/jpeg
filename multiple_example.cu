@@ -139,7 +139,7 @@ __global__ void runLengthEncodeKernel(const int *zigzag_blocks, int *rle_blocks,
         int prev_val = zigzag[0];
         int run_length = 0;
 
-        for (int i = 1; i < 64; i++)
+        for (int i = 0; i < 64; i++)
         {
             if (zigzag[i] == prev_val)
             {
@@ -160,8 +160,8 @@ __global__ void runLengthEncodeKernel(const int *zigzag_blocks, int *rle_blocks,
     }
 }
 
-void dctAndJpegParallel(const vector<vector<vector<int>>> &input_blocks, const vector<int> &quantization_table,
-                        vector<vector<int>> &encoded_blocks)
+void encodeGPU(const vector<vector<vector<int>>> &input_blocks, const vector<int> &quantization_table,
+               vector<vector<int>> &encoded_blocks)
 {
     int num_blocks = input_blocks.size();
     int total_size = num_blocks * 64; // Total number of elements
@@ -238,6 +238,90 @@ void dctAndJpegParallel(const vector<vector<vector<int>>> &input_blocks, const v
     cudaFree(d_quantization_table);
 }
 
+__global__ void runLengthDecodeKernel(const int *rle_blocks, const int *block_lengths, int *zigzag_blocks, int num_blocks)
+{
+    int block_idx = blockIdx.x;
+
+    if (block_idx < num_blocks)
+    {
+        const int *rle = &rle_blocks[block_idx * 128]; // Max size: 128 (pairs of value and run-length)
+        int rle_length = block_lengths[block_idx];     // Length of the RLE data
+        int *zigzag = &zigzag_blocks[block_idx * 64];
+
+        int zigzag_index = 0;
+
+        for (int i = 0; i < rle_length; i += 2)
+        {
+            int value = rle[i];          // Decoded value
+            int run_length = rle[i + 1]; // Number of repetitions
+
+            for (int j = 0; j < run_length; j++)
+            {
+                if (zigzag_index < 64) // Ensure we do not exceed the zigzag block size
+                {
+                    zigzag[zigzag_index++] = value;
+                }
+            }
+        }
+    }
+}
+
+void decodeGPU(const vector<vector<int>> &encoded_blocks, const vector<int> &quantization_table, vector<vector<vector<int>>> &decoded_blocks)
+{
+    int num_blocks = encoded_blocks.size();
+    int total_size = num_blocks * 64; // Total number of elements
+
+    // Allocate device memory
+    int *d_zigzag_blocks, *d_rle_blocks, *d_block_lengths, *d_quantization_table;
+    float *d_output;
+
+    cudaMalloc(&d_zigzag_blocks, total_size * sizeof(int));
+    cudaMalloc(&d_rle_blocks, num_blocks * 128 * sizeof(int));
+    cudaMalloc(&d_block_lengths, num_blocks * sizeof(int));
+    cudaMalloc(&d_quantization_table, 64 * sizeof(int));
+    cudaMalloc(&d_output, total_size * sizeof(float));
+
+    // Prepare quantization table
+    cudaMemcpy(d_quantization_table, quantization_table.data(), 64 * sizeof(int), cudaMemcpyHostToDevice);
+
+    // Flatten encoded blocks for device transfer
+    vector<int> rle_flattened(num_blocks * 128);
+    vector<int> block_lengths(num_blocks);
+    for (int block = 0; block < num_blocks; block++)
+    {
+        block_lengths[block] = encoded_blocks[block].size();
+        for (int i = 0; i < block_lengths[block]; i++)
+        {
+            rle_flattened[block * 128 + i] = encoded_blocks[block][i];
+        }
+    }
+    cudaMemcpy(d_rle_blocks, rle_flattened.data(), num_blocks * 128 * sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_block_lengths, block_lengths.data(), num_blocks * sizeof(int), cudaMemcpyHostToDevice);
+
+    // Launch RLE decode kernel
+    runLengthDecodeKernel<<<num_blocks, 1>>>(d_rle_blocks, d_block_lengths, d_zigzag_blocks, num_blocks);
+
+    // Print the zigzag blocks
+    vector<int> zigzag_flattened(num_blocks * 64);
+    cudaMemcpy(zigzag_flattened.data(), d_zigzag_blocks, num_blocks * 64 * sizeof(int), cudaMemcpyDeviceToHost);
+    for (int i = 0; i < num_blocks; i++)
+    {
+        cout << "Block " << i << ":" << endl;
+        for (int j = 0; j < 64; j++)
+        {
+            cout << zigzag_flattened[i * 64 + j] << " ";
+        }
+        cout << endl;
+    }
+
+    // Free device memory
+    cudaFree(d_zigzag_blocks);
+    cudaFree(d_rle_blocks);
+    cudaFree(d_block_lengths);
+    cudaFree(d_quantization_table);
+    cudaFree(d_output);
+}
+
 int main()
 {
     // Input image blocks
@@ -272,7 +356,7 @@ int main()
 
     // Encode the image blocks
     vector<vector<int>> encoded_blocks;
-    dctAndJpegParallel(image_blocks, quantization_table, encoded_blocks);
+    encodeGPU(image_blocks, quantization_table, encoded_blocks);
 
     // Print the encoded blocks
     for (const auto &block : encoded_blocks)
@@ -284,6 +368,10 @@ int main()
         }
         cout << endl;
     }
+
+    // image block
+    vector<vector<vector<int>>> decoded_image_blocks;
+    decodeGPU(encoded_blocks, quantization_table, decoded_image_blocks);
 
     return 0;
 }
