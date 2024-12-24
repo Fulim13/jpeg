@@ -21,10 +21,8 @@ __global__ void recenterKernel(int *input, int num_blocks)
     }
 }
 
-// Constants for DCT computation
 __constant__ float c_dct_table[8][8];
 
-// Initialize DCT coefficient table
 void initDCTTable(float *h_dct_table)
 {
     for (int i = 0; i < 8; i++)
@@ -37,7 +35,6 @@ void initDCTTable(float *h_dct_table)
     }
 }
 
-// Modified CUDA kernel to process multiple blocks in parallel
 __global__ void dctKernel(const int *input, float *output, int num_blocks)
 {
     __shared__ float s_block[8][8];
@@ -446,72 +443,3 @@ void decodeGPU(const vector<vector<int>> &encoded_blocks, const vector<vector<in
     cudaFree(d_output);
     cudaFree(d_quantization_table);
 }
-// int main()
-// {
-//     // Input image blocks
-//     vector<vector<vector<int>>> image_blocks = {
-//         {{52, 55, 61, 66, 70, 61, 64, 73},
-//          {63, 59, 55, 90, 109, 85, 69, 72},
-//          {62, 59, 68, 113, 144, 104, 66, 73},
-//          {63, 58, 71, 122, 154, 106, 70, 69},
-//          {67, 61, 68, 104, 126, 88, 68, 70},
-//          {79, 65, 60, 70, 77, 68, 58, 75},
-//          {85, 71, 64, 59, 55, 61, 65, 83},
-//          {87, 79, 69, 68, 65, 76, 78, 94}},
-//         {{65, 70, 72, 74, 76, 73, 70, 65},
-//          {68, 65, 60, 58, 56, 55, 60, 70},
-//          {72, 75, 80, 85, 87, 90, 88, 80},
-//          {60, 58, 55, 52, 50, 51, 55, 60},
-//          {70, 75, 80, 85, 90, 95, 100, 105},
-//          {110, 115, 120, 125, 130, 128, 125, 120},
-//          {100, 95, 90, 85, 80, 75, 70, 65},
-//          {60, 55, 50, 45, 40, 38, 35, 30}}};
-
-//     // Quantization table
-//     vector<vector<int>> quantization_table = {
-//         {16, 11, 10, 16, 24, 40, 51, 61},
-//         {12, 12, 14, 19, 26, 58, 60, 55},
-//         {14, 13, 16, 24, 40, 57, 69, 56},
-//         {14, 17, 22, 29, 51, 87, 80, 62},
-//         {18, 22, 37, 56, 68, 109, 103, 77},
-//         {24, 35, 55, 64, 81, 104, 113, 92},
-//         {49, 64, 78, 87, 103, 121, 120, 101},
-//         {72, 92, 95, 98, 112, 100, 103, 99},
-//     };
-
-//     // Encode the image blocks
-//     vector<vector<int>> encoded_blocks;
-//     encodeGPU(image_blocks, quantization_table, encoded_blocks);
-
-//     // Print the encoded blocks
-//     for (const auto &block : encoded_blocks)
-//     {
-//         cout << "Block:" << endl;
-//         for (const auto &val : block)
-//         {
-//             cout << val << " ";
-//         }
-//         cout << endl;
-//     }
-
-//     // image block
-//     vector<vector<vector<int>>> decoded_image_blocks;
-//     decodeGPU(encoded_blocks, quantization_table, decoded_image_blocks);
-
-//     // Print the decoded image blocks
-//     for (const auto &block : decoded_image_blocks)
-//     {
-//         cout << "Block:" << endl;
-//         for (const auto &row : block)
-//         {
-//             for (const auto &val : row)
-//             {
-//                 cout << val << " ";
-//             }
-//             cout << endl;
-//         }
-//         cout << endl;
-//     }
-
-//     return 0;
-// }

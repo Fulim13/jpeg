@@ -1,7 +1,7 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <vector>
-#include <cmath> // For cosine and sqrt functions
+#include <cmath>
 #include <queue>
 #include <unordered_map>
 #include <algorithm>
@@ -14,9 +14,9 @@ using namespace std;
 using namespace cv;
 using namespace std::chrono;
 
-Mat readImage(const string &folder_path, const string &image_name)
+Mat readImage(const string &folder_path, const string &image_name, const string &extension = "png")
 {
-    Mat image = imread(folder_path + image_name + ".png"); // Replace with your image path
+    Mat image = imread(folder_path + image_name + "." + extension);
     if (image.empty())
     {
         cerr << "Could not open or find the image" << endl;
@@ -101,51 +101,6 @@ void chromaSubsampling(const Mat &input, Mat &Y, Mat &Cb, Mat &Cr)
     }
 }
 
-void saveProcessedImages(const Mat &Y, const Mat &Cb, const Mat &Cr)
-{
-    imwrite("output/Y_channel.png", Y);
-    imwrite("output/Cb_channel.png", Cb);
-    imwrite("output/Cr_channel.png", Cr);
-}
-
-void showImages(const Mat &image, const Mat &Y, const Mat &Cb, const Mat &Cr)
-{
-    imshow("Original Image", image);
-    imshow("Y Channel", Y);
-    imshow("Cb Channel (Subsampled)", Cb);
-    imshow("Cr Channel (Subsampled)", Cr);
-    waitKey(0);
-}
-
-// Calculate compression ratio and sizes
-struct CompressionStats2
-{
-    size_t original_size;
-    size_t compressed_size;
-    double compression_ratio;
-};
-
-CompressionStats2 calculateCompressionStats2(const Mat &original_image,
-                                             const string &y_encoded,
-                                             const string &cb_encoded,
-                                             const string &cr_encoded)
-{
-    CompressionStats2 stats;
-
-    // Calculate original size (3 channels * width * height)
-    stats.original_size = original_image.total() * original_image.elemSize();
-
-    // Calculate compressed size (encoded strings in bytes + small overhead for dimensions)
-    stats.compressed_size = (y_encoded.length() + cb_encoded.length() + cr_encoded.length()) / 8;
-    stats.compressed_size += sizeof(int) * 2; // For storing width and height
-
-    // Calculate compression ratio
-    stats.compression_ratio = static_cast<double>(stats.original_size) / stats.compressed_size;
-
-    return stats;
-}
-
-// Structure to store compression stats
 struct CompressionStats
 {
     size_t original_size;        // Original image size (in bytes)
@@ -156,7 +111,6 @@ struct CompressionStats
     double compressed_size_kb;   // Compressed size in KB
 };
 
-// Function to calculate compression statistics comparing the original image with the compressed file
 CompressionStats calculateCompressionStats(const Mat &original_image, const string &compressed_filename)
 {
     CompressionStats stats;
@@ -222,36 +176,6 @@ void extractBlocks(const Mat &Y, vector<vector<vector<int>>> &blocks)
     }
 }
 
-// const: This means that the function will not modify the mat parameter. It's a promise that the function only reads the data.
-
-// & (reference): This allows the function to avoid copying the entire matrix. Instead, it works directly with the original matrix passed as an argument, making the function more efficient.
-void print_with_tab(const vector<vector<int>> &mat)
-{
-    // auto lets the compiler deduce the type automatically.
-    // & means we're accessing each row of the matrix by reference (not making a copy).
-    for (const auto &row : mat) // Iterate over each row of the matrix
-    {
-        for (const auto &val : row) // Iterate over each value in the current row
-        {
-            cout << val << "\t";
-        }
-        cout << endl;
-    }
-}
-
-void print_with_tab(const vector<vector<float>> &mat)
-{
-    for (const auto &row : mat)
-    {
-        for (const auto &val : row)
-        {
-            cout << val << "\t";
-        }
-        cout << endl;
-    }
-}
-
-// Function to perform Discrete Cosine Transform (DCT) on an 8x8 image block
 void dct(const vector<vector<int>> &image_block, vector<vector<float>> &dct_block)
 {
     // Iterate over each coefficient in the 8x8 DCT matrix
@@ -343,7 +267,6 @@ void zigzag_scan(const vector<vector<float>> &block, vector<int> &zigzag)
     }
 }
 
-// RLE for AC components
 vector<int> run_length_encode_ac(const vector<int> &ac_coefficients)
 {
     vector<int> rle_encoded_ac;
@@ -369,7 +292,6 @@ vector<int> run_length_encode_ac(const vector<int> &ac_coefficients)
     return rle_encoded_ac;
 }
 
-// Function to build frequency dictionary
 unordered_map<int, int> build_frequency_dict(const vector<int> &data)
 {
     unordered_map<int, int> frequency_dict;
@@ -380,7 +302,6 @@ unordered_map<int, int> build_frequency_dict(const vector<int> &data)
     return frequency_dict;
 }
 
-// Node structure for Huffman tree
 struct HuffmanNode
 {
     int value;
@@ -391,7 +312,6 @@ struct HuffmanNode
     HuffmanNode(int val, int freq) : value(val), frequency(freq), left(nullptr), right(nullptr) {}
 };
 
-// Comparator for priority queue
 struct Compare
 {
     bool operator()(HuffmanNode *left, HuffmanNode *right)
@@ -400,7 +320,6 @@ struct Compare
     }
 };
 
-// Function to build the Huffman tree
 HuffmanNode *build_huffman_tree(const unordered_map<int, int> &freq_dict)
 {
     priority_queue<HuffmanNode *, vector<HuffmanNode *>, Compare> min_heap;
@@ -432,7 +351,6 @@ HuffmanNode *build_huffman_tree(const unordered_map<int, int> &freq_dict)
     return min_heap.top();
 }
 
-// Function to generate Huffman codes
 void generate_huffman_codes(HuffmanNode *node, const string &code, unordered_map<int, string> &huffman_codes)
 {
     if (!node)
@@ -447,17 +365,9 @@ void generate_huffman_codes(HuffmanNode *node, const string &code, unordered_map
     generate_huffman_codes(node->right, code + "1", huffman_codes);
 }
 
-// Function to encode data using Huffman codes
 string huffman_encode(const vector<int> &data, const unordered_map<int, string> &huffman_codes)
 {
     string encoded_str;
-    // Print the values with their corresponding Huffman codes
-    cout << "Huffman Codes: " << endl;
-    for (const auto &pair : huffman_codes)
-    {
-        cout << pair.first << ": " << pair.second << endl;
-    }
-
     for (int val : data)
     {
         encoded_str += huffman_codes.at(val);
@@ -479,53 +389,6 @@ vector<int> huffman_decode(const string &encoded_str, HuffmanNode *root)
         }
     }
     return decoded_values;
-}
-
-// Example quantization tables for Y, Cb, and Cr
-vector<vector<int>> quantization_table_Y = {
-    {16, 11, 10, 16, 24, 40, 51, 61},
-    {12, 12, 14, 19, 26, 58, 60, 55},
-    {14, 13, 16, 24, 40, 57, 69, 56},
-    {14, 17, 22, 29, 51, 87, 80, 62},
-    {18, 22, 37, 56, 68, 109, 103, 77},
-    {24, 35, 55, 64, 81, 104, 113, 92},
-    {49, 64, 78, 87, 103, 121, 120, 101},
-    {72, 92, 95, 98, 112, 100, 103, 99},
-};
-
-vector<vector<int>> quantization_table_CbCr = {
-    {17, 18, 24, 47, 99, 99, 99, 99},
-    {18, 21, 26, 66, 99, 99, 99, 99},
-    {24, 26, 56, 99, 99, 99, 99, 99},
-    {47, 66, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-};
-
-// Function to print the Huffman tree structure
-void print_huffman_tree(HuffmanNode *node, const string &prefix = "", bool is_left = true)
-{
-    if (!node)
-        return;
-
-    // Print the current node
-    cout << prefix << (is_left ? "├── " : "└── ");
-    if (!node->left && !node->right)
-    {
-        // Leaf node
-        cout << "Value: " << node->value << ", Frequency: " << node->frequency << endl;
-    }
-    else
-    {
-        // Internal node
-        cout << "Frequency: " << node->frequency << endl;
-    }
-
-    // Recursively print left and right subtrees
-    print_huffman_tree(node->left, prefix + (is_left ? "│   " : "    "), true);
-    print_huffman_tree(node->right, prefix + (is_left ? "│   " : "    "), false);
 }
 
 vector<vector<int>> decodeRLE(const vector<int> &rle_encoded)
@@ -646,12 +509,11 @@ void add_back_128(vector<vector<int>> &image_block)
     {
         for (auto &val : row)
         {
-            val += 128; // Revert the recentering step by adding 128
+            val += 128;
         }
     }
 }
 
-// Encoding function that takes a channel matrix and returns encoded data
 struct EncodedData
 {
     string huffman_encoded_str;
@@ -706,7 +568,6 @@ EncodedData encodeChannel(const Mat &channel, const vector<vector<int>> &quantiz
     return {huffman_encoded_str, huffman_tree};
 }
 
-// Decoding function that takes encoded data and returns reconstructed channel
 Mat decodeChannel(const EncodedData &encoded_data, int height, int width, const vector<vector<int>> &quantization_table)
 {
     // Huffman decode
@@ -1063,138 +924,200 @@ void loadEncodedData(const string &filename,
     file.close();
 }
 
-int main()
+double mainEncode(const Mat &Y, const Mat &Cb, const Mat &Cr,
+                  const vector<vector<int>> &quantization_table_Y,
+                  const vector<vector<int>> &quantization_table_CbCr,
+                  EncodedData &y_encoded, EncodedData &cb_encoded, EncodedData &cr_encoded, bool isGPU)
 {
-    string folder_path = "img/";
-    string image_name = "test2";
-    // Load and convert image
-    Mat image = readImage(folder_path, image_name);
-    if (image.empty())
-    {
-        throw runtime_error("Failed to load image");
-    }
-
-    Mat ycbcr_image = RGB2YCbCr(image);
-
-    // Perform chroma subsampling
-    Mat Y, Cb, Cr;
-    chromaSubsampling(ycbcr_image, Y, Cb, Cr);
-
-    // Show the original and subsampled images
-    showImages(image, Y, Cb, Cr);
-
-    // Measure encoding time
+    // Measure the start of encoding time
     auto start_encoding = high_resolution_clock::now();
 
     // Encode each channel
-    EncodedData y_encoded = encodeChannel(Y, quantization_table_Y);
-    EncodedData cb_encoded = encodeChannel(Cb, quantization_table_CbCr);
-    EncodedData cr_encoded = encodeChannel(Cr, quantization_table_CbCr);
-
+    if (!isGPU)
+    {
+        y_encoded = encodeChannel(Y, quantization_table_Y);
+        cb_encoded = encodeChannel(Cb, quantization_table_CbCr);
+        cr_encoded = encodeChannel(Cr, quantization_table_CbCr);
+    }
+    else
+    {
+        y_encoded = encodeChannelGPU(Y, quantization_table_Y);
+        cb_encoded = encodeChannelGPU(Cb, quantization_table_CbCr);
+        cr_encoded = encodeChannelGPU(Cr, quantization_table_CbCr);
+    }
     // Measure the end of encoding time
     auto stop_encoding = high_resolution_clock::now();
 
     // Print encoding time
     auto duration_encoding = duration_cast<milliseconds>(stop_encoding - start_encoding);
-    cout << "Encoding time: " << duration_encoding.count() << " ms" << endl;
+    return duration_encoding.count();
+}
 
-    // Measure encoding time
-    auto start_encoding_gpu = high_resolution_clock::now();
-
-    // Encode each channel
-    EncodedData y_encoded_gpu = encodeChannelGPU(Y, quantization_table_Y);
-    EncodedData cb_encoded_gpu = encodeChannelGPU(Cb, quantization_table_CbCr);
-    EncodedData cr_encoded_gpu = encodeChannelGPU(Cr, quantization_table_CbCr);
-
-    // Measure the end of encoding time
-    auto stop_encoding_gpu = high_resolution_clock::now();
-
-    // Print encoding time
-    auto duration_encoding_gpu = duration_cast<milliseconds>(stop_encoding_gpu - start_encoding_gpu);
-    cout << "Encoding time (GPU): " << duration_encoding_gpu.count() << " ms" << endl;
-
-    // Measure the Performance Improvement
-    cout << "Performance Improvement: " << (double)duration_encoding.count() / duration_encoding_gpu.count() << "x" << endl;
-
-    // Save three encoded data (EncodedData) and ows and cols for each channel to one bin file
-    saveEncodedData("compressed_image.bin",
-                    y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu,
-                    Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
-
-    // // Calculate compression statistics
-    // CompressionStats2 stats2 = calculateCompressionStats2(
-    //     image,
-    //     y_encoded.huffman_encoded_str,
-    //     cb_encoded.huffman_encoded_str,
-    //     cr_encoded.huffman_encoded_str);
-
-    // // Print compression information
-    // cout << "Original size: " << stats2.original_size << " bytes" << endl;
-    // cout << "Compressed size: " << stats2.compressed_size << " bytes" << endl;
-    // cout << "Compression ratio: " << stats2.compression_ratio << ":1" << endl;
-    // cout << "Space saving: " << (1.0 - 1.0 / stats2.compression_ratio) * 100 << "%" << endl;
-
-    // Assuming `saveEncodedData` has been called earlier and compressed data is stored in a file
-    string compressed_filename = "compressed_image.bin";
-
-    // Calculate compression statistics
-    CompressionStats stats = calculateCompressionStats(image, compressed_filename);
-
-    // Output in both bytes and KB
-    cout << "Original size: " << stats.original_size << " bytes (" << stats.original_size_kb << " KB)" << endl;
-    cout << "Compressed size: " << stats.compressed_size << " bytes (" << stats.compressed_size_kb << " KB)" << endl;
-    cout << "Compression ratio: " << stats.compression_ratio << endl;
-    cout << "Percentage reduction: " << stats.percentage_reduction << "%" << endl;
-
-    // Load encoded data (As EncodedData) from file and Read the rows and cols for each channel
-    EncodedData y_loaded, cb_loaded, cr_loaded;
-    int y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols;
-    loadEncodedData("compressed_image.bin",
-                    y_loaded, cb_loaded, cr_loaded,
-                    y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols);
-
-    // Measure decoding time
+double mainDecode(const EncodedData &y_loaded, const EncodedData &cb_loaded, const EncodedData &cr_loaded,
+                  int y_rows, int y_cols, int cb_rows, int cb_cols, int cr_rows, int cr_cols,
+                  const vector<vector<int>> &quantization_table_Y,
+                  const vector<vector<int>> &quantization_table_CbCr,
+                  Mat &Y_reconstructed, Mat &Cb_reconstructed, Mat &Cr_reconstructed, bool isGPU)
+{
+    // Measure decoding time for GPU
     auto start_decoding = high_resolution_clock::now();
 
     // Decode each channel
-    Mat Y_reconstructed = decodeChannel(y_loaded, y_rows, y_cols, quantization_table_Y);
-    Mat Cb_reconstructed = decodeChannel(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr);
-    Mat Cr_reconstructed = decodeChannel(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr);
+    if (!isGPU)
+    {
+        Y_reconstructed = decodeChannel(y_loaded, y_rows, y_cols, quantization_table_Y);
+        Cb_reconstructed = decodeChannel(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr);
+        Cr_reconstructed = decodeChannel(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr);
+    }
+    else
+    {
+        Y_reconstructed = decodeChannelGPU(y_loaded, y_rows, y_cols, quantization_table_Y);
+        Cb_reconstructed = decodeChannelGPU(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr);
+        Cr_reconstructed = decodeChannelGPU(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr);
+    }
 
     // Measure the end of decoding time
     auto end_decoding = high_resolution_clock::now();
 
     // Calculate decoding time
     auto duration_decoding = duration_cast<milliseconds>(end_decoding - start_decoding);
+    return duration_decoding.count();
+}
 
-    // Print decoding time
-    cout << "Decoding time: " << duration_decoding.count() << " ms" << endl;
+vector<vector<int>> quantization_table_Y = {
+    {16, 11, 10, 16, 24, 40, 51, 61},
+    {12, 12, 14, 19, 26, 58, 60, 55},
+    {14, 13, 16, 24, 40, 57, 69, 56},
+    {14, 17, 22, 29, 51, 87, 80, 62},
+    {18, 22, 37, 56, 68, 109, 103, 77},
+    {24, 35, 55, 64, 81, 104, 113, 92},
+    {49, 64, 78, 87, 103, 121, 120, 101},
+    {72, 92, 95, 98, 112, 100, 103, 99},
+};
 
-    // Measure decoding time for GPU
-    auto start_decoding_gpu = high_resolution_clock::now();
+vector<vector<int>> quantization_table_CbCr = {
+    {17, 18, 24, 47, 99, 99, 99, 99},
+    {18, 21, 26, 66, 99, 99, 99, 99},
+    {24, 26, 56, 99, 99, 99, 99, 99},
+    {47, 66, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+};
 
-    // Decode each channel
-    Mat Y_reconstructed_gpu = decodeChannelGPU(y_loaded, y_rows, y_cols, quantization_table_Y);
-    Mat Cb_reconstructed_gpu = decodeChannelGPU(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr);
-    Mat Cr_reconstructed_gpu = decodeChannelGPU(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr);
+int main()
+{
+    string folder_path = "img/";
+    string image_name = "Boy_1024";
 
-    // Measure the end of decoding time
-    auto end_decoding_gpu = high_resolution_clock::now();
+    // Load the image
+    Mat image = readImage(folder_path, image_name);
+    if (image.empty())
+    {
+        throw runtime_error("Failed to load image");
+    }
 
-    // Calculate decoding time
+    // Convert the image From RGB to YCbCr
+    Mat ycbcr_image = RGB2YCbCr(image);
 
-    auto duration_decoding_gpu = duration_cast<milliseconds>(end_decoding_gpu - start_decoding_gpu);
+    // Perform chroma subsampling
+    Mat Y, Cb, Cr;
+    chromaSubsampling(ycbcr_image, Y, Cb, Cr);
 
-    // Print decoding time
-    cout << "Decoding time (GPU): " << duration_decoding_gpu.count() << " ms" << endl;
+    // Show the original
+    imshow("Original Image", image);
 
-    // Measure the Performance Improvement
-    cout << "Performance Improvement: " << (double)duration_decoding.count() / duration_decoding_gpu.count() << "x" << endl;
+    // Show the Y, Cb, and Cr channels
+    imshow("Y Channel", Y);
+    imshow("Cb Channel (Subsampled)", Cb);
+    imshow("Cr Channel (Subsampled)", Cr);
+    waitKey(0);
 
-    // Show the reconstructed images
-    imshow("Reconstructed Y Channel", Y_reconstructed_gpu);
-    imshow("Reconstructed Cb Channel", Cb_reconstructed_gpu);
-    imshow("Reconstructed Cr Channel", Cr_reconstructed_gpu);
+    // Encode and Calculate the time for encoding
+    EncodedData y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu;
+    EncodedData y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu;
+    double originalTimeForEncode = mainEncode(Y, Cb, Cr,
+                                              quantization_table_Y, quantization_table_CbCr,
+                                              y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu, false);
+    double modifiedTimeGPUForEncode = mainEncode(Y, Cb, Cr,
+                                                 quantization_table_Y, quantization_table_CbCr,
+                                                 y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu, true);
+
+    cout << "Encoding time (CPU): " << originalTimeForEncode << " ms" << endl;
+    cout << "Encoding time (GPU): " << modifiedTimeGPUForEncode << " ms" << endl;
+    cout << "Encoding Performance Improvement: " << originalTimeForEncode / modifiedTimeGPUForEncode << "x" << endl;
+    cout << "======================================\n\n";
+
+    // CPU - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
+    string compressed_filename_cpu = "output/compressed_image_cpu.bin";
+    saveEncodedData(compressed_filename_cpu,
+                    y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu,
+                    Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
+
+    // GPU - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
+    string compressed_filename_gpu = "output/compressed_image_gpu.bin";
+    saveEncodedData(compressed_filename_gpu,
+                    y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu,
+                    Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
+
+    // Stat For CPU
+    CompressionStats statsCPU = calculateCompressionStats(image, compressed_filename_cpu);
+    cout << "Original size (CPU): " << statsCPU.original_size << " bytes (" << statsCPU.original_size_kb << " KB)" << endl;
+    cout << "Compressed size (CPU): " << statsCPU.compressed_size << " bytes (" << statsCPU.compressed_size_kb << " KB)" << endl;
+    cout << "Compression ratio (CPU): " << statsCPU.compression_ratio << endl;
+    cout << "Percentage reduction (CPU): " << statsCPU.percentage_reduction << "%" << endl;
+    cout << "======================================\n\n";
+
+    // Stat For GPU
+    CompressionStats statsGPU = calculateCompressionStats(image, compressed_filename_cpu);
+    cout << "Original size (GPU): " << statsGPU.original_size << " bytes (" << statsGPU.original_size_kb << " KB)" << endl;
+    cout << "Compressed size (GPU): " << statsGPU.compressed_size << " bytes (" << statsGPU.compressed_size_kb << " KB)" << endl;
+    cout << "Compression ratio (GPU): " << statsGPU.compression_ratio << endl;
+    cout << "Percentage reduction (GPU): " << statsGPU.percentage_reduction << "%" << endl;
+    cout << "======================================\n\n";
+
+    // CPU - Load encoded data (As EncodedData) from file and Read the rows and cols for each channel
+    EncodedData y_loaded, cb_loaded, cr_loaded;
+    int y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols;
+    loadEncodedData(compressed_filename_cpu,
+                    y_loaded, cb_loaded, cr_loaded,
+                    y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols);
+
+    // GPU - Load encoded data (As EncodedData) from file and Read the rows and cols for each channel
+    EncodedData y_loaded_gpu, cb_loaded_gpu, cr_loaded_gpu;
+    int y_rows_gpu, y_cols_gpu, cb_rows_gpu, cb_cols_gpu, cr_rows_gpu, cr_cols_gpu;
+    loadEncodedData(compressed_filename_gpu,
+                    y_loaded_gpu, cb_loaded_gpu, cr_loaded_gpu,
+                    y_rows_gpu, y_cols_gpu, cb_rows_gpu, cb_cols_gpu, cr_rows_gpu, cr_cols_gpu);
+
+    // Decode and Calculate the time for decoding
+    Mat Y_reconstructed, Cb_reconstructed, Cr_reconstructed;
+    double originalTimeForDecode = mainDecode(y_loaded, cb_loaded, cr_loaded,
+                                              y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols,
+                                              quantization_table_Y, quantization_table_CbCr,
+                                              Y_reconstructed, Cb_reconstructed, Cr_reconstructed, false);
+
+    Mat Y_reconstructed_gpu, Cb_reconstructed_gpu, Cr_reconstructed_gpu;
+    double modifiedTimeGPUForDecode = mainDecode(y_loaded_gpu, cb_loaded_gpu, cr_loaded_gpu,
+                                                 y_rows_gpu, y_cols_gpu, cb_rows_gpu, cb_cols_gpu, cr_rows_gpu, cr_cols_gpu,
+                                                 quantization_table_Y, quantization_table_CbCr,
+                                                 Y_reconstructed_gpu, Cb_reconstructed_gpu, Cr_reconstructed_gpu, true);
+
+    cout << "Decoding time (CPU): " << originalTimeForDecode << " ms" << endl;
+    cout << "Decoding time (GPU): " << modifiedTimeGPUForDecode << " ms" << endl;
+    cout << "Decoding Performance Improvement (GPU): " << originalTimeForDecode / modifiedTimeGPUForDecode << "x" << endl;
+    cout << "======================================\n\n";
+
+    // Show the reconstructed images for CPU
+    imshow("Reconstructed Y Channel", Y_reconstructed);
+    imshow("Reconstructed Cb Channel", Cb_reconstructed);
+    imshow("Reconstructed Cr Channel", Cr_reconstructed);
+
+    // Show the reconstructed images for GPU
+    imshow("Reconstructed Y Channel (GPU)", Y_reconstructed_gpu);
+    imshow("Reconstructed Cb Channel (GPU)", Cb_reconstructed_gpu);
+    imshow("Reconstructed Cr Channel (GPU)", Cr_reconstructed_gpu);
     waitKey(0);
 
     // Merge the Y, Cb, Cr channels and convert back to BGR
@@ -1202,36 +1125,34 @@ int main()
     resize(Cb_reconstructed, Cb_reconstructed, Y_reconstructed.size(), 0, 0, INTER_LINEAR);
     resize(Cr_reconstructed, Cr_reconstructed, Y_reconstructed.size(), 0, 0, INTER_LINEAR);
 
-    Mat reconstructed_image;
-    vector<Mat> channels = {Y_reconstructed, Cb_reconstructed, Cr_reconstructed};
+    resize(Cb_reconstructed_gpu, Cb_reconstructed_gpu, Y_reconstructed_gpu.size(), 0, 0, INTER_LINEAR);
+    resize(Cr_reconstructed_gpu, Cr_reconstructed_gpu, Y_reconstructed_gpu.size(), 0, 0, INTER_LINEAR);
 
-    // Check sizes and depths of the channels
-    for (int i = 0; i < channels.size(); i++)
-    {
-        cout << "Channel " << i << " size: " << channels[i].size() << ", depth: " << channels[i].depth() << endl;
-    }
+    Mat reconstructed_image_cpu, reconstructed_image_gpu;
 
-    // Ensure all channels have the same size and depth
-    if (channels[0].size() == channels[1].size() && channels[0].size() == channels[2].size() &&
-        channels[0].depth() == channels[1].depth() && channels[0].depth() == channels[2].depth())
-    {
-        merge(channels, reconstructed_image);
-        Mat final_image;
-        cvtColor(reconstructed_image, final_image, COLOR_YCrCb2BGR);
+    vector<Mat> channels_cpu = {Y_reconstructed, Cb_reconstructed, Cr_reconstructed};
+    vector<Mat> channels_gpu = {Y_reconstructed_gpu, Cb_reconstructed_gpu, Cr_reconstructed_gpu};
 
-        // Display the final image
-        imshow("Final Image", final_image);
-        waitKey(0);
-    }
-    else
-    {
-        cerr << "Error: Channel sizes or depths do not match." << endl;
-    }
+    merge(channels_cpu, reconstructed_image_cpu);
+    merge(channels_gpu, reconstructed_image_gpu);
+
+    Mat final_image_cpu, final_image_gpu;
+    cvtColor(reconstructed_image_cpu, final_image_cpu, COLOR_YCrCb2BGR);
+    cvtColor(reconstructed_image_gpu, final_image_gpu, COLOR_YCrCb2BGR);
+
+    // Display the original and final image
+    imshow("Original Image", image);
+    imshow("Final Image (CPU)", final_image_cpu);
+    imshow("Final Image (GPU)", final_image_gpu);
+    waitKey(0);
 
     // Clean up Huffman trees
-    delete y_encoded.huffman_tree;
-    delete cb_encoded.huffman_tree;
-    delete cr_encoded.huffman_tree;
+    delete y_encoded_cpu.huffman_tree;
+    delete cb_encoded_cpu.huffman_tree;
+    delete cr_encoded_cpu.huffman_tree;
+    delete y_encoded_gpu.huffman_tree;
+    delete cb_encoded_gpu.huffman_tree;
+    delete cr_encoded_gpu.huffman_tree;
 
     return 0;
 }

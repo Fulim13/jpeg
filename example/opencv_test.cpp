@@ -4,7 +4,7 @@
 int main()
 {
     // Load the image and store it in a matrix
-    cv::Mat img = cv::imread("Lenna.png");
+    cv::Mat img = cv::imread("../img/Lenna_512.png");
     if (img.empty())
     {
         std::cout << "Error: Could not read the image!" << std::endl;
