@@ -14,9 +14,9 @@ using namespace std;
 using namespace cv;
 using namespace std::chrono;
 
-Mat readImage(const string &folder_path, const string &image_name, const string &extension = "png")
+Mat readImage(const string &image_name)
 {
-    Mat image = imread(folder_path + image_name + "." + extension);
+    Mat image = imread(image_name);
     if (image.empty())
     {
         cerr << "Could not open or find the image" << endl;
@@ -111,12 +111,18 @@ struct CompressionStats
     double compressed_size_kb;   // Compressed size in KB
 };
 
-CompressionStats calculateCompressionStats(const Mat &original_image, const string &compressed_filename)
+CompressionStats calculateCompressionStats(const string &original_filename, const string &compressed_filename)
 {
     CompressionStats stats;
 
-    // Calculate original size (3 channels * width * height)
-    stats.original_size = original_image.total() * original_image.elemSize();
+    // Open the original file and calculate its size on disk
+    ifstream original_file(original_filename, ios::binary | ios::ate); // Open file and move to the end
+    if (!original_file)
+    {
+        throw runtime_error("Cannot open the original file: " + original_filename);
+    }
+
+    stats.original_size = original_file.tellg(); // Get the size of the original file
 
     // Convert original size to KB
     stats.original_size_kb = static_cast<double>(stats.original_size) / 1024.0;
@@ -927,13 +933,13 @@ void loadEncodedData(const string &filename,
 double mainEncode(const Mat &Y, const Mat &Cb, const Mat &Cr,
                   const vector<vector<int>> &quantization_table_Y,
                   const vector<vector<int>> &quantization_table_CbCr,
-                  EncodedData &y_encoded, EncodedData &cb_encoded, EncodedData &cr_encoded, bool isGPU)
+                  EncodedData &y_encoded, EncodedData &cb_encoded, EncodedData &cr_encoded, string platform)
 {
     // Measure the start of encoding time
     auto start_encoding = high_resolution_clock::now();
 
     // Encode each channel
-    if (!isGPU)
+    if (platform == "CPU")
     {
         y_encoded = encodeChannel(Y, quantization_table_Y);
         cb_encoded = encodeChannel(Cb, quantization_table_CbCr);
@@ -957,13 +963,13 @@ double mainDecode(const EncodedData &y_loaded, const EncodedData &cb_loaded, con
                   int y_rows, int y_cols, int cb_rows, int cb_cols, int cr_rows, int cr_cols,
                   const vector<vector<int>> &quantization_table_Y,
                   const vector<vector<int>> &quantization_table_CbCr,
-                  Mat &Y_reconstructed, Mat &Cb_reconstructed, Mat &Cr_reconstructed, bool isGPU)
+                  Mat &Y_reconstructed, Mat &Cb_reconstructed, Mat &Cr_reconstructed, string platform)
 {
     // Measure decoding time for GPU
     auto start_decoding = high_resolution_clock::now();
 
     // Decode each channel
-    if (!isGPU)
+    if (platform == "CPU")
     {
         Y_reconstructed = decodeChannel(y_loaded, y_rows, y_cols, quantization_table_Y);
         Cb_reconstructed = decodeChannel(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr);
@@ -1008,11 +1014,16 @@ vector<vector<int>> quantization_table_CbCr = {
 
 int main()
 {
-    string folder_path = "img/";
-    string image_name = "Boy_1024";
+    string folder_name = "img/";
+    string image_name = "img/Boy_1024.png";
+
+    cout << "Enter the image name: ";
+    cin >> image_name;
+
+    image_name = folder_name + image_name;
 
     // Load the image
-    Mat image = readImage(folder_path, image_name);
+    Mat image = readImage(image_name);
     if (image.empty())
     {
         throw runtime_error("Failed to load image");
@@ -1039,10 +1050,10 @@ int main()
     EncodedData y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu;
     double originalTimeForEncode = mainEncode(Y, Cb, Cr,
                                               quantization_table_Y, quantization_table_CbCr,
-                                              y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu, false);
+                                              y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu, "CPU");
     double modifiedTimeGPUForEncode = mainEncode(Y, Cb, Cr,
                                                  quantization_table_Y, quantization_table_CbCr,
-                                                 y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu, true);
+                                                 y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu, "GPU");
 
     cout << "Encoding time (CPU): " << originalTimeForEncode << " ms" << endl;
     cout << "Encoding time (GPU): " << modifiedTimeGPUForEncode << " ms" << endl;
@@ -1062,7 +1073,7 @@ int main()
                     Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
 
     // Stat For CPU
-    CompressionStats statsCPU = calculateCompressionStats(image, compressed_filename_cpu);
+    CompressionStats statsCPU = calculateCompressionStats(image_name, compressed_filename_cpu);
     cout << "Original size (CPU): " << statsCPU.original_size << " bytes (" << statsCPU.original_size_kb << " KB)" << endl;
     cout << "Compressed size (CPU): " << statsCPU.compressed_size << " bytes (" << statsCPU.compressed_size_kb << " KB)" << endl;
     cout << "Compression ratio (CPU): " << statsCPU.compression_ratio << endl;
@@ -1070,7 +1081,7 @@ int main()
     cout << "======================================\n\n";
 
     // Stat For GPU
-    CompressionStats statsGPU = calculateCompressionStats(image, compressed_filename_cpu);
+    CompressionStats statsGPU = calculateCompressionStats(image_name, compressed_filename_gpu);
     cout << "Original size (GPU): " << statsGPU.original_size << " bytes (" << statsGPU.original_size_kb << " KB)" << endl;
     cout << "Compressed size (GPU): " << statsGPU.compressed_size << " bytes (" << statsGPU.compressed_size_kb << " KB)" << endl;
     cout << "Compression ratio (GPU): " << statsGPU.compression_ratio << endl;
@@ -1096,13 +1107,13 @@ int main()
     double originalTimeForDecode = mainDecode(y_loaded, cb_loaded, cr_loaded,
                                               y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols,
                                               quantization_table_Y, quantization_table_CbCr,
-                                              Y_reconstructed, Cb_reconstructed, Cr_reconstructed, false);
+                                              Y_reconstructed, Cb_reconstructed, Cr_reconstructed, "CPU");
 
     Mat Y_reconstructed_gpu, Cb_reconstructed_gpu, Cr_reconstructed_gpu;
     double modifiedTimeGPUForDecode = mainDecode(y_loaded_gpu, cb_loaded_gpu, cr_loaded_gpu,
                                                  y_rows_gpu, y_cols_gpu, cb_rows_gpu, cb_cols_gpu, cr_rows_gpu, cr_cols_gpu,
                                                  quantization_table_Y, quantization_table_CbCr,
-                                                 Y_reconstructed_gpu, Cb_reconstructed_gpu, Cr_reconstructed_gpu, true);
+                                                 Y_reconstructed_gpu, Cb_reconstructed_gpu, Cr_reconstructed_gpu, "GPU");
 
     cout << "Decoding time (CPU): " << originalTimeForDecode << " ms" << endl;
     cout << "Decoding time (GPU): " << modifiedTimeGPUForDecode << " ms" << endl;
