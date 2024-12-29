@@ -1,8 +1,3 @@
-# Things havent completed yet
-
-1. Study the Compression Metrics: PSNR, MSE, Compression Ratio
-2. Write Report about the result
-
 # Install OpenCV in C++
 
 ```bash
@@ -30,4 +25,11 @@ Ctrl+Shfit+P -> C/C++: Edit Configurations (JSON) to add the open cv and cuda fo
 ```bash
 nvcc main.cpp kernel.cu -o main `pkg-config --cflags --libs opencv4`
 ./main
+```
+
+# How to Run the Analysis
+
+```bash
+nvcc analysis.cpp kernel.cu -o analysis `pkg-config --cflags --libs opencv4`
+python3 metric_auto_generate_image.py
 ```
