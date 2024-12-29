@@ -1,0 +1,3 @@
+Image File,File Size (KB),Encoding Performance Gain,Decoding Performance Gain,Compression Ratio (CPU),Compression Ratio (GPU),CPU MSE,CPU PSNR,GPU MSE,GPU PSNR
+./img/01_512_Barbara.png,99.8486328125,2.74132,27.5714,1.99744,1.99744
+./img/Boy_1024.png,2693.3125,8.87893,32.7438,16.1067,16.1067
