@@ -116,10 +116,7 @@ int main(int argc, char *argv[])
     double originalTimeForEncode = mainEncode(Y, Cb, Cr,
                                               quantization_table_Y, quantization_table_CbCr,
                                               y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu, "CPU");
-    // Print out Y, Cb, Cr dimensions
-    cout << "Y rows: " << Y.rows << " cols: " << Y.cols << endl;
-    cout << "Cb rows: " << Cb.rows << " cols: " << Cb.cols << endl;
-    cout << "Cr rows: " << Cr.rows << " cols: " << Cr.cols << endl;
+
     string y_huffman_str_cpu = y_encoded_cpu.huffman_encoded_str;
     HuffmanNode *y_huffman_tree_cpu = y_encoded_cpu.huffman_tree;
     string cb_huffman_str_cpu = cb_encoded_cpu.huffman_encoded_str;

@@ -600,8 +600,6 @@ EncodedData encodeChannel(const Mat &channel, const vector<vector<int>> &quantiz
     // Extract 8x8 blocks
     vector<vector<vector<int>>> blocks;
     extractBlocks(channel, blocks);
-    // Print block size
-    cout << "Block size: " << blocks.size() << endl;
 
     // Vector to store encoded values for all blocks
     vector<int> combined_encoded_values;
@@ -609,97 +607,22 @@ EncodedData encodeChannel(const Mat &channel, const vector<vector<int>> &quantiz
     // Process each block
     for (auto &block : blocks)
     {
-        // print the first block
-        if (&block == &blocks[0])
-        {
-            cout << "First block before DCT:" << endl;
-            for (int x = 0; x < 8; x++)
-            {
-                for (int y = 0; y < 8; y++)
-                {
-                    cout << block[x][y] << " ";
-                }
-                cout << endl;
-            }
-        }
-
         // Recenter around zero
         recenterAroundZero(block);
-
-        // print the first block
-        if (&block == &blocks[0])
-        {
-            cout << "First block after recentering:" << endl;
-            for (int x = 0; x < 8; x++)
-            {
-                for (int y = 0; y < 8; y++)
-                {
-                    cout << block[x][y] << " ";
-                }
-                cout << endl;
-            }
-        }
 
         // Perform DCT
         vector<vector<float>> dct_block(8, vector<float>(8, 0.0));
         dct(block, dct_block);
-        // print the first block
-        if (&block == &blocks[0])
-        {
-            cout << "First block after DCT:" << endl;
-            for (int x = 0; x < 8; x++)
-            {
-                for (int y = 0; y < 8; y++)
-                {
-                    cout << dct_block[x][y] << " ";
-                }
-                cout << endl;
-            }
-        }
 
         // Quantization
         quantize(dct_block, quantization_table);
-        // print the first block
-        if (&block == &blocks[0])
-        {
-            cout << "First block after DCT:" << endl;
-            for (int x = 0; x < 8; x++)
-            {
-                for (int y = 0; y < 8; y++)
-                {
-                    cout << dct_block[x][y] << " ";
-                }
-                cout << endl;
-            }
-        }
 
         // Zigzag scan
         vector<int> zigzag;
         zigzag_scan(dct_block, zigzag);
-        // Print the first block
-        if (&block == &blocks[0])
-        {
-            cout << "First block after Zigzag:" << endl;
-            for (int x = 0; x < zigzag.size(); x++)
-            {
-                cout << zigzag[x] << " ";
-            }
-            cout << endl;
-        }
 
         // Run-length encoding
         vector<int> rle_encoded = run_length_encode_ac(zigzag);
-
-        // print the first block
-        if (&block == &blocks[0])
-        {
-            cout << "First block after RLE (CPU):" << endl;
-            for (int x = 0; x < rle_encoded.size(); x++)
-            {
-                cout << rle_encoded[x] << " ";
-            }
-            cout << endl;
-        }
 
         // Add encoded values to combined vector
         combined_encoded_values.insert(combined_encoded_values.end(),
@@ -743,17 +666,6 @@ Mat decodeChannel(const string &encoded_data, int height, int width, const vecto
         inverse_quantize(restored_blocks[i], quantization_table);
         idct(restored_blocks[i], reconstructed_blocks[i]);
         add_back_128(reconstructed_blocks[i]);
-    }
-
-    // Print the first block of image_blocks
-    cout << "First block after dequantization and IDCT:" << endl;
-    for (int x = 0; x < 8; x++)
-    {
-        for (int y = 0; y < 8; y++)
-        {
-            cout << reconstructed_blocks[0][x][y] << " ";
-        }
-        cout << endl;
     }
 
     // Create output matrix
@@ -800,17 +712,6 @@ EncodedData encodeChannelGPU(const Mat &channel, const vector<vector<int>> &quan
     vector<int> combined_encoded_values;
     for (auto &block : quantize_coefficients)
     {
-        // print the first block
-        if (&block == &quantize_coefficients[0])
-        {
-            cout << "First block after encoding:" << endl;
-            for (int x = 0; x < 64; x++)
-            {
-                cout << block[x] << " ";
-            }
-            cout << endl;
-        }
-
         // Perform Zigzag
         vector<int> zigzag;
         vector<vector<float>> wrapped_block(8, vector<float>(8, 0.0));
@@ -825,17 +726,6 @@ EncodedData encodeChannelGPU(const Mat &channel, const vector<vector<int>> &quan
 
         // Perform Run-length encoding
         vector<int> rle_encoded = run_length_encode_ac(zigzag);
-
-        // print the first block
-        if (&block == &quantize_coefficients[0])
-        {
-            cout << "First block after RLE (GPU):" << endl;
-            for (int x = 0; x < rle_encoded.size(); x++)
-            {
-                cout << rle_encoded[x] << " ";
-            }
-            cout << endl;
-        }
 
         combined_encoded_values.insert(combined_encoded_values.end(),
                                        rle_encoded.begin(),
@@ -877,17 +767,6 @@ Mat decodeChannelGPU(const string &encoded_data, int height, int width, const ve
 
     vector<vector<vector<int>>> image_blocks;
     dequantizeInverseDCTParallel(restored_blocks, quantization_table, image_blocks);
-
-    // Print the first block of image_blocks
-    cout << "First block after dequantization and IDCT:" << endl;
-    for (int x = 0; x < 8; x++)
-    {
-        for (int y = 0; y < 8; y++)
-        {
-            cout << image_blocks[0][x][y] << " ";
-        }
-        cout << endl;
-    }
 
     // Create output matrix
     Mat reconstructed = Mat::zeros(height, width, CV_8UC1);
