@@ -216,7 +216,7 @@ void dct(const vector<vector<int>> &image_block, vector<vector<float>> &dct_bloc
             }
 
             // 100 / 100 because of round to 2 decimal places
-            dct_block[u][v] = round(0.25 * cu * cv * sum_val * 100) / 100;
+            dct_block[u][v] = round(0.25 * cu * cv * sum_val);
         }
     }
 }
@@ -540,6 +540,8 @@ EncodedData encodeChannel(const Mat &channel, const vector<vector<int>> &quantiz
     // Extract 8x8 blocks
     vector<vector<vector<int>>> blocks;
     extractBlocks(channel, blocks);
+    // Print block size
+    cout << "Block size: " << blocks.size() << endl;
 
     // Vector to store encoded values for all blocks
     vector<int> combined_encoded_values;
@@ -547,22 +549,97 @@ EncodedData encodeChannel(const Mat &channel, const vector<vector<int>> &quantiz
     // Process each block
     for (auto &block : blocks)
     {
+        // print the first block
+        if (&block == &blocks[0])
+        {
+            cout << "First block before DCT:" << endl;
+            for (int x = 0; x < 8; x++)
+            {
+                for (int y = 0; y < 8; y++)
+                {
+                    cout << block[x][y] << " ";
+                }
+                cout << endl;
+            }
+        }
+
         // Recenter around zero
         recenterAroundZero(block);
+
+        // print the first block
+        if (&block == &blocks[0])
+        {
+            cout << "First block after recentering:" << endl;
+            for (int x = 0; x < 8; x++)
+            {
+                for (int y = 0; y < 8; y++)
+                {
+                    cout << block[x][y] << " ";
+                }
+                cout << endl;
+            }
+        }
 
         // Perform DCT
         vector<vector<float>> dct_block(8, vector<float>(8, 0.0));
         dct(block, dct_block);
+        // print the first block
+        if (&block == &blocks[0])
+        {
+            cout << "First block after DCT:" << endl;
+            for (int x = 0; x < 8; x++)
+            {
+                for (int y = 0; y < 8; y++)
+                {
+                    cout << dct_block[x][y] << " ";
+                }
+                cout << endl;
+            }
+        }
 
         // Quantization
         quantize(dct_block, quantization_table);
+        // print the first block
+        if (&block == &blocks[0])
+        {
+            cout << "First block after DCT:" << endl;
+            for (int x = 0; x < 8; x++)
+            {
+                for (int y = 0; y < 8; y++)
+                {
+                    cout << dct_block[x][y] << " ";
+                }
+                cout << endl;
+            }
+        }
 
         // Zigzag scan
         vector<int> zigzag;
         zigzag_scan(dct_block, zigzag);
+        // Print the first block
+        if (&block == &blocks[0])
+        {
+            cout << "First block after Zigzag:" << endl;
+            for (int x = 0; x < zigzag.size(); x++)
+            {
+                cout << zigzag[x] << " ";
+            }
+            cout << endl;
+        }
 
         // Run-length encoding
         vector<int> rle_encoded = run_length_encode_ac(zigzag);
+
+        // print the first block
+        if (&block == &blocks[0])
+        {
+            cout << "First block after RLE (CPU):" << endl;
+            for (int x = 0; x < rle_encoded.size(); x++)
+            {
+                cout << rle_encoded[x] << " ";
+            }
+            cout << endl;
+        }
 
         // Add encoded values to combined vector
         combined_encoded_values.insert(combined_encoded_values.end(),
@@ -583,55 +660,67 @@ EncodedData encodeChannel(const Mat &channel, const vector<vector<int>> &quantiz
     return {huffman_encoded_str, huffman_tree};
 }
 
-Mat decodeChannel(const EncodedData &encoded_data, int height, int width, const vector<vector<int>> &quantization_table)
+Mat decodeChannel(const string &encoded_data, int height, int width, const vector<vector<int>> &quantization_table, HuffmanNode *huffman_tree)
 {
     // Huffman decode
-    vector<int> decoded_values = huffman_decode(encoded_data.huffman_encoded_str,
-                                                encoded_data.huffman_tree);
+    vector<int> decoded_values = huffman_decode(encoded_data, huffman_tree);
 
     // RLE decode
     vector<vector<int>> decoded_blocks = decodeRLE(decoded_values);
 
+    // Create vector of restored blocks
+    vector<vector<vector<float>>>
+        restored_blocks(decoded_blocks.size(),
+                        vector<vector<float>>(8, vector<float>(8, 0.0)));
+    vector<vector<vector<int>>>
+        reconstructed_blocks(decoded_blocks.size(),
+                             vector<vector<int>>(8, vector<int>(8, 0)));
+
+    // Process each block
+    for (size_t i = 0; i < decoded_blocks.size(); i++)
+    {
+        inverse_zigzag(decoded_blocks[i], restored_blocks[i]);
+        inverse_quantize(restored_blocks[i], quantization_table);
+        idct(restored_blocks[i], reconstructed_blocks[i]);
+        add_back_128(reconstructed_blocks[i]);
+    }
+
+    // Print the first block of image_blocks
+    cout << "First block after dequantization and IDCT:" << endl;
+    for (int x = 0; x < 8; x++)
+    {
+        for (int y = 0; y < 8; y++)
+        {
+            cout << reconstructed_blocks[0][x][y] << " ";
+        }
+        cout << endl;
+    }
+
     // Create output matrix
     Mat reconstructed = Mat::zeros(height, width, CV_8UC1);
 
-    // Process each block
-    int block_idx = 0;
-    for (int i = 0; i < height; i += 8)
+    // Copy blocks to reconstructed matrix
+    int block_row = 0, block_col = 0;
+    for (const auto &block : reconstructed_blocks)
     {
-        for (int j = 0; j < width; j += 8)
+        for (int i = 0; i < 8; i++)
         {
-            if (block_idx >= decoded_blocks.size())
-                break;
-
-            // Inverse zigzag
-            vector<vector<float>> restored_block(8, vector<float>(8, 0.0));
-            inverse_zigzag(decoded_blocks[block_idx], restored_block);
-
-            // Inverse quantization
-            inverse_quantize(restored_block, quantization_table);
-
-            // Inverse DCT
-            vector<vector<int>> reconstructed_block(8, vector<int>(8, 0));
-            idct(restored_block, reconstructed_block);
-
-            // Add back 128
-            add_back_128(reconstructed_block);
-
-            // Copy block to output matrix
-            for (int x = 0; x < 8; x++)
+            for (int j = 0; j < 8; j++)
             {
-                for (int y = 0; y < 8; y++)
+                int pixel_row = block_row * 8 + i;
+                int pixel_col = block_col * 8 + j;
+                if (pixel_row < height && pixel_col < width)
                 {
-                    if (i + x < height && j + y < width)
-                    {
-                        reconstructed.at<uchar>(i + x, j + y) =
-                            static_cast<uchar>(reconstructed_block[x][y]);
-                    }
+                    reconstructed.at<uchar>(pixel_row, pixel_col) =
+                        static_cast<uchar>(std::clamp(block[i][j], 0, 255));
                 }
             }
-
-            block_idx++;
+        }
+        block_col++;
+        if (block_col * 8 >= width)
+        {
+            block_col = 0;
+            block_row++;
         }
     }
 
@@ -644,18 +733,55 @@ EncodedData encodeChannelGPU(const Mat &channel, const vector<vector<int>> &quan
     vector<vector<vector<int>>> blocks;
     extractBlocks(channel, blocks);
 
-    // Vector to store encoded values for all blocks
-    vector<vector<int>> encoded_values;
-
-    encodeGPU(blocks, quantization_table, encoded_values);
+    // Running the DCT and quantization in parallel (64 threads per block)
+    vector<vector<float>> quantize_coefficients;
+    dctQuantizationParallel(blocks, quantization_table, quantize_coefficients);
 
     vector<int> combined_encoded_values;
-    for (auto &block : encoded_values)
+    for (auto &block : quantize_coefficients)
     {
+        // print the first block
+        if (&block == &quantize_coefficients[0])
+        {
+            cout << "First block after encoding:" << endl;
+            for (int x = 0; x < 64; x++)
+            {
+                cout << block[x] << " ";
+            }
+            cout << endl;
+        }
+
+        // Perform Zigzag
+        vector<int> zigzag;
+        vector<vector<float>> wrapped_block(8, vector<float>(8, 0.0));
+        for (int i = 0; i < 8; ++i)
+        {
+            for (int j = 0; j < 8; ++j)
+            {
+                wrapped_block[i][j] = block[i * 8 + j];
+            }
+        }
+        zigzag_scan(wrapped_block, zigzag);
+
+        // Perform Run-length encoding
+        vector<int> rle_encoded = run_length_encode_ac(zigzag);
+
+        // print the first block
+        if (&block == &quantize_coefficients[0])
+        {
+            cout << "First block after RLE (GPU):" << endl;
+            for (int x = 0; x < rle_encoded.size(); x++)
+            {
+                cout << rle_encoded[x] << " ";
+            }
+            cout << endl;
+        }
+
         combined_encoded_values.insert(combined_encoded_values.end(),
-                                       block.begin(),
-                                       block.end());
+                                       rle_encoded.begin(),
+                                       rle_encoded.end());
     }
+
     // Build Huffman tree and codes
     unordered_map<int, int>
         freq_dict = build_frequency_dict(combined_encoded_values);
@@ -670,127 +796,68 @@ EncodedData encodeChannelGPU(const Mat &channel, const vector<vector<int>> &quan
     return {huffman_encoded_str, huffman_tree};
 }
 
-Mat decodeChannelGPU(const EncodedData &encoded_data, int height, int width, const vector<vector<int>> &quantization_table)
+Mat decodeChannelGPU(const string &encoded_data, int height, int width, const vector<vector<int>> &quantization_table, HuffmanNode *huffman_tree)
 {
     // Huffman decode
-    vector<int> decoded_values = huffman_decode(encoded_data.huffman_encoded_str,
-                                                encoded_data.huffman_tree);
-    vector<vector<int>> blocks;
-    vector<int> current_block;
-    int current_length = 0;
+    vector<int> decoded_values = huffman_decode(encoded_data, huffman_tree);
 
-    for (size_t i = 0; i < decoded_values.size(); i += 2)
+    // RLE decode
+    vector<vector<int>> decoded_blocks = decodeRLE(decoded_values);
+
+    // Create vector of restored blocks
+    vector<vector<vector<float>>>
+        restored_blocks(decoded_blocks.size(),
+                        vector<vector<float>>(8, vector<float>(8, 0.0)));
+
+    // Process each block
+    for (size_t i = 0; i < decoded_blocks.size(); i++)
     {
-        int value = decoded_values[i];         // Value
-        int frequency = decoded_values[i + 1]; // Frequency
-
-        while (frequency > 0)
-        {
-            int to_add = min(64 - current_length, frequency);
-            current_block.push_back(value);
-            current_block.push_back(to_add);
-
-            current_length += to_add;
-            frequency -= to_add;
-
-            if (current_length == 64)
-            {
-                blocks.push_back(current_block);
-                current_block.clear();
-                current_length = 0;
-            }
-        }
-    }
-
-    // Add any remaining elements to the last block
-    if (!current_block.empty())
-    {
-        blocks.push_back(current_block);
+        inverse_zigzag(decoded_blocks[i], restored_blocks[i]);
     }
 
     vector<vector<vector<int>>> image_blocks;
+    dequantizeInverseDCTParallel(restored_blocks, quantization_table, image_blocks);
 
-    decodeGPU(blocks, quantization_table, image_blocks);
+    // Print the first block of image_blocks
+    cout << "First block after dequantization and IDCT:" << endl;
+    for (int x = 0; x < 8; x++)
+    {
+        for (int y = 0; y < 8; y++)
+        {
+            cout << image_blocks[0][x][y] << " ";
+        }
+        cout << endl;
+    }
 
     // Create output matrix
     Mat reconstructed = Mat::zeros(height, width, CV_8UC1);
 
-    // Fill the reconstructed Mat from image_blocks
-    int block_size = 8;
-    int blocks_per_row = (width + block_size - 1) / block_size;
-    int blocks_per_col = (height + block_size - 1) / block_size;
-
-    for (int block_row = 0; block_row < blocks_per_col; ++block_row)
+    // Copy blocks to reconstructed matrix
+    int block_row = 0, block_col = 0;
+    for (const auto &block : image_blocks)
     {
-        for (int block_col = 0; block_col < blocks_per_row; ++block_col)
+        for (int i = 0; i < 8; i++)
         {
-            int block_index = block_row * blocks_per_row + block_col;
-            if (block_index >= image_blocks.size())
-                break;
-
-            // Get the current block
-            const auto &block = image_blocks[block_index];
-
-            // Place the block into the Mat
-            for (int i = 0; i < block_size; ++i)
+            for (int j = 0; j < 8; j++)
             {
-                for (int j = 0; j < block_size; ++j)
+                int pixel_row = block_row * 8 + i;
+                int pixel_col = block_col * 8 + j;
+                if (pixel_row < height && pixel_col < width)
                 {
-                    int row = block_row * block_size + i;
-                    int col = block_col * block_size + j;
-
-                    // Ensure we don't go out of bounds
-                    if (row < height && col < width)
-                    {
-                        reconstructed.at<uchar>(row, col) = static_cast<uchar>(block[i][j]);
-                    }
+                    reconstructed.at<uchar>(pixel_row, pixel_col) =
+                        static_cast<uchar>(std::clamp(block[i][j], 0, 255));
                 }
             }
+        }
+        block_col++;
+        if (block_col * 8 >= width)
+        {
+            block_col = 0;
+            block_row++;
         }
     }
 
     return reconstructed;
-}
-
-// Function to serialize Huffman tree for storage
-void serializeHuffmanTree(HuffmanNode *root, ofstream &file)
-{
-    // Write whether this node is null (0) or not (1)
-    bool isNotNull = (root != nullptr);
-    file.write(reinterpret_cast<char *>(&isNotNull), sizeof(bool));
-
-    if (root)
-    {
-        // Write node data
-        file.write(reinterpret_cast<char *>(&root->value), sizeof(int));
-        file.write(reinterpret_cast<char *>(&root->frequency), sizeof(int));
-
-        // Recursively serialize left and right subtrees
-        serializeHuffmanTree(root->left, file);
-        serializeHuffmanTree(root->right, file);
-    }
-}
-
-// Function to deserialize Huffman tree from storage
-HuffmanNode *deserializeHuffmanTree(ifstream &file)
-{
-    bool isNotNull;
-    file.read(reinterpret_cast<char *>(&isNotNull), sizeof(bool));
-
-    if (!isNotNull)
-    {
-        return nullptr;
-    }
-
-    int value, frequency;
-    file.read(reinterpret_cast<char *>(&value), sizeof(int));
-    file.read(reinterpret_cast<char *>(&frequency), sizeof(int));
-
-    HuffmanNode *node = new HuffmanNode(value, frequency);
-    node->left = deserializeHuffmanTree(file);
-    node->right = deserializeHuffmanTree(file);
-
-    return node;
 }
 
 // Function to convert a Huffman-encoded string to a bitstream (vector of bytes)
@@ -852,7 +919,7 @@ string bitstreamToString(const vector<unsigned char> &bitstream, int total_bits)
 }
 
 void saveEncodedData(const string &filename,
-                     const EncodedData &y_data, const EncodedData &cb_data, const EncodedData &cr_data,
+                     const string &y_data, const string &cb_data, const string &cr_data,
                      int y_rows, int y_cols, int cb_rows, int cb_cols, int cr_rows, int cr_cols)
 {
     ofstream file(filename, ios::binary);
@@ -869,35 +936,30 @@ void saveEncodedData(const string &filename,
     file.write(reinterpret_cast<const char *>(&cr_rows), sizeof(int));
     file.write(reinterpret_cast<const char *>(&cr_cols), sizeof(int));
 
-    // Write encoded strings lengths
-    int y_len = y_data.huffman_encoded_str.length();
-    int cb_len = cb_data.huffman_encoded_str.length();
-    int cr_len = cr_data.huffman_encoded_str.length();
+    // Convert Huffman strings to raw bitstreams
+    vector<unsigned char> y_bitstream = stringToBitstream(y_data);
+    vector<unsigned char> cb_bitstream = stringToBitstream(cb_data);
+    vector<unsigned char> cr_bitstream = stringToBitstream(cr_data);
+
+    // Write the lengths of the bitstreams
+    int y_len = y_bitstream.size();
+    int cb_len = cb_bitstream.size();
+    int cr_len = cr_bitstream.size();
 
     file.write(reinterpret_cast<const char *>(&y_len), sizeof(int));
     file.write(reinterpret_cast<const char *>(&cb_len), sizeof(int));
     file.write(reinterpret_cast<const char *>(&cr_len), sizeof(int));
 
-    // Convert Huffman strings to bitstreams
-    vector<unsigned char> y_bitstream = stringToBitstream(y_data.huffman_encoded_str);
-    vector<unsigned char> cb_bitstream = stringToBitstream(cb_data.huffman_encoded_str);
-    vector<unsigned char> cr_bitstream = stringToBitstream(cr_data.huffman_encoded_str);
-
-    // Write the bitstream data to file
-    file.write(reinterpret_cast<const char *>(y_bitstream.data()), y_bitstream.size());
-    file.write(reinterpret_cast<const char *>(cb_bitstream.data()), cb_bitstream.size());
-    file.write(reinterpret_cast<const char *>(cr_bitstream.data()), cr_bitstream.size());
-
-    // Write Huffman trees
-    serializeHuffmanTree(y_data.huffman_tree, file);
-    serializeHuffmanTree(cb_data.huffman_tree, file);
-    serializeHuffmanTree(cr_data.huffman_tree, file);
+    // Write the raw bitstreams
+    file.write(reinterpret_cast<const char *>(y_bitstream.data()), y_len);
+    file.write(reinterpret_cast<const char *>(cb_bitstream.data()), cb_len);
+    file.write(reinterpret_cast<const char *>(cr_bitstream.data()), cr_len);
 
     file.close();
 }
 
 void loadEncodedData(const string &filename,
-                     EncodedData &y_data, EncodedData &cb_data, EncodedData &cr_data,
+                     string &y_data, string &cb_data, string &cr_data,
                      int &y_rows, int &y_cols, int &cb_rows, int &cb_cols, int &cr_rows, int &cr_cols)
 {
     ifstream file(filename, ios::binary);
@@ -914,29 +976,24 @@ void loadEncodedData(const string &filename,
     file.read(reinterpret_cast<char *>(&cr_rows), sizeof(int));
     file.read(reinterpret_cast<char *>(&cr_cols), sizeof(int));
 
-    // Read string lengths
+    // Read the lengths of the encoded strings
     int y_len, cb_len, cr_len;
     file.read(reinterpret_cast<char *>(&y_len), sizeof(int));
     file.read(reinterpret_cast<char *>(&cb_len), sizeof(int));
     file.read(reinterpret_cast<char *>(&cr_len), sizeof(int));
 
-    // Read the bitstream data from file
-    vector<unsigned char> y_bitstream(y_len / 8 + 1), cb_bitstream(cb_len / 8 + 1), cr_bitstream(cr_len / 8 + 1);
-    file.read(reinterpret_cast<char *>(y_bitstream.data()), y_bitstream.size());
-    file.read(reinterpret_cast<char *>(cb_bitstream.data()), cb_bitstream.size());
-    file.read(reinterpret_cast<char *>(cr_bitstream.data()), cr_bitstream.size());
-
-    // Convert the bitstreams back to Huffman-encoded strings
-    y_data.huffman_encoded_str = bitstreamToString(y_bitstream, y_len);
-    cb_data.huffman_encoded_str = bitstreamToString(cb_bitstream, cb_len);
-    cr_data.huffman_encoded_str = bitstreamToString(cr_bitstream, cr_len);
-
-    // Read Huffman trees
-    y_data.huffman_tree = deserializeHuffmanTree(file);
-    cb_data.huffman_tree = deserializeHuffmanTree(file);
-    cr_data.huffman_tree = deserializeHuffmanTree(file);
+    // Read the raw bitstream data
+    vector<unsigned char> y_bitstream(y_len), cb_bitstream(cb_len), cr_bitstream(cr_len);
+    file.read(reinterpret_cast<char *>(y_bitstream.data()), y_len);
+    file.read(reinterpret_cast<char *>(cb_bitstream.data()), cb_len);
+    file.read(reinterpret_cast<char *>(cr_bitstream.data()), cr_len);
 
     file.close();
+
+    // Reconstruct the Huffman-encoded strings from bitstream
+    y_data = bitstreamToString(y_bitstream, y_len * 8); // 8 bits per byte
+    cb_data = bitstreamToString(cb_bitstream, cb_len * 8);
+    cr_data = bitstreamToString(cr_bitstream, cr_len * 8);
 }
 
 double mainEncode(const Mat &Y, const Mat &Cb, const Mat &Cr,
@@ -968,11 +1025,13 @@ double mainEncode(const Mat &Y, const Mat &Cb, const Mat &Cr,
     return duration_encoding.count();
 }
 
-double mainDecode(const EncodedData &y_loaded, const EncodedData &cb_loaded, const EncodedData &cr_loaded,
+double mainDecode(const string &y_loaded, const string &cb_loaded, const string &cr_loaded,
                   int y_rows, int y_cols, int cb_rows, int cb_cols, int cr_rows, int cr_cols,
                   const vector<vector<int>> &quantization_table_Y,
                   const vector<vector<int>> &quantization_table_CbCr,
-                  Mat &Y_reconstructed, Mat &Cb_reconstructed, Mat &Cr_reconstructed, string platform)
+                  Mat &Y_reconstructed, Mat &Cb_reconstructed, Mat &Cr_reconstructed,
+                  HuffmanNode *y_huffman_tree, HuffmanNode *cb_huffman_tree, HuffmanNode *cr_huffman_tree,
+                  string platform)
 {
     // Measure decoding time for GPU
     auto start_decoding = high_resolution_clock::now();
@@ -980,15 +1039,15 @@ double mainDecode(const EncodedData &y_loaded, const EncodedData &cb_loaded, con
     // Decode each channel
     if (platform == "CPU")
     {
-        Y_reconstructed = decodeChannel(y_loaded, y_rows, y_cols, quantization_table_Y);
-        Cb_reconstructed = decodeChannel(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr);
-        Cr_reconstructed = decodeChannel(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr);
+        Y_reconstructed = decodeChannel(y_loaded, y_rows, y_cols, quantization_table_Y, y_huffman_tree);
+        Cb_reconstructed = decodeChannel(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr, cb_huffman_tree);
+        Cr_reconstructed = decodeChannel(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_huffman_tree);
     }
     else
     {
-        Y_reconstructed = decodeChannelGPU(y_loaded, y_rows, y_cols, quantization_table_Y);
-        Cb_reconstructed = decodeChannelGPU(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr);
-        Cr_reconstructed = decodeChannelGPU(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr);
+        Y_reconstructed = decodeChannelGPU(y_loaded, y_rows, y_cols, quantization_table_Y, y_huffman_tree);
+        Cb_reconstructed = decodeChannelGPU(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr, cb_huffman_tree);
+        Cr_reconstructed = decodeChannelGPU(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_huffman_tree);
     }
 
     // Measure the end of decoding time
@@ -1010,6 +1069,17 @@ vector<vector<int>> quantization_table_Y = {
     {72, 92, 95, 98, 112, 100, 103, 99},
 };
 
+// vector<vector<int>> quantization_table_Y = {
+//     {3, 2, 2, 3, 5, 8, 10, 12},
+//     {2, 2, 3, 4, 5, 12, 12, 11},
+//     {3, 3, 3, 5, 8, 11, 14, 11},
+//     {3, 3, 4, 6, 10, 17, 16, 12},
+//     {4, 4, 7, 11, 14, 22, 21, 15},
+//     {5, 7, 11, 13, 16, 12, 23, 18},
+//     {10, 13, 16, 17, 21, 24, 24, 21},
+//     {14, 18, 19, 20, 22, 20, 20, 20},
+// };
+
 vector<vector<int>> quantization_table_CbCr = {
     {17, 18, 24, 47, 99, 99, 99, 99},
     {18, 21, 26, 66, 99, 99, 99, 99},
@@ -1020,6 +1090,17 @@ vector<vector<int>> quantization_table_CbCr = {
     {99, 99, 99, 99, 99, 99, 99, 99},
     {99, 99, 99, 99, 99, 99, 99, 99},
 };
+
+// vector<vector<int>> quantization_table_CbCr = {
+//     {11, 12, 14, 19, 26, 58, 60, 55},
+//     {12, 18, 21, 28, 32, 57, 59, 56},
+//     {14, 21, 25, 30, 59, 59, 59, 59},
+//     {19, 28, 30, 59, 59, 59, 59, 59},
+//     {26, 32, 59, 59, 59, 59, 59, 59},
+//     {58, 57, 59, 59, 59, 59, 59, 59},
+//     {60, 59, 59, 59, 59, 59, 59, 59},
+//     {55, 56, 59, 59, 59, 59, 59, 59},
+// };
 
 struct ImageMetric
 {

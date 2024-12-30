@@ -3,8 +3,8 @@
 
 using namespace std;
 
-void encodeGPU(const vector<vector<vector<int>>> &input_blocks, const vector<vector<int>> &quantization_table,
-               vector<vector<int>> &encoded_blocks);
+void dctQuantizationParallel(const vector<vector<vector<int>>> &input_blocks, const vector<vector<int>> &quantization_table,
+                             vector<vector<float>> &quantize_coefficients);
 
-void decodeGPU(const vector<vector<int>> &encoded_blocks, const vector<vector<int>> &quantization_table,
-               vector<vector<vector<int>>> &decoded_blocks);
+void dequantizeInverseDCTParallel(const vector<vector<vector<float>>> &quantize_coefficients, const vector<vector<int>> &quantization_table,
+                                  vector<vector<vector<int>>> &output_blocks);

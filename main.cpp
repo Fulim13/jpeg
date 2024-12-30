@@ -31,6 +31,13 @@ int main()
     Mat Y, Cb, Cr;
     chromaSubsampling(ycbcr_image, Y, Cb, Cr);
 
+    // Split the YCbCr image into 3 channels
+    vector<Mat> channels;
+    // split(ycbcr_image, channels);
+    // Y = channels[0];
+    // Cb = channels[1];
+    // Cr = channels[2];
+
     // Show the original
     // imshow("Original Image", image);
 
@@ -48,12 +55,25 @@ int main()
     double originalTimeForEncode = mainEncode(Y, Cb, Cr,
                                               quantization_table_Y, quantization_table_CbCr,
                                               y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu, "CPU");
+    string y_huffman_str_cpu = y_encoded_cpu.huffman_encoded_str;
+    HuffmanNode *y_huffman_tree_cpu = y_encoded_cpu.huffman_tree;
+    string cb_huffman_str_cpu = cb_encoded_cpu.huffman_encoded_str;
+    HuffmanNode *cb_huffman_tree_cpu = cb_encoded_cpu.huffman_tree;
+    string cr_huffman_str_cpu = cr_encoded_cpu.huffman_encoded_str;
+    HuffmanNode *cr_huffman_tree_cpu = cr_encoded_cpu.huffman_tree;
 
     cout << "Compressed with GPU" << endl;
     cout << "======================================\n";
     double modifiedTimeGPUForEncode = mainEncode(Y, Cb, Cr,
                                                  quantization_table_Y, quantization_table_CbCr,
                                                  y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu, "GPU");
+
+    string y_huffman_str_gpu = y_encoded_gpu.huffman_encoded_str;
+    HuffmanNode *y_huffman_tree_gpu = y_encoded_gpu.huffman_tree;
+    string cb_huffman_str_gpu = cb_encoded_gpu.huffman_encoded_str;
+    HuffmanNode *cb_huffman_tree_gpu = cb_encoded_gpu.huffman_tree;
+    string cr_huffman_str_gpu = cr_encoded_gpu.huffman_encoded_str;
+    HuffmanNode *cr_huffman_tree_gpu = cr_encoded_gpu.huffman_tree;
 
     cout << "Encoding time (CPU): " << originalTimeForEncode << " ms" << endl;
     cout << "Encoding time (GPU): " << modifiedTimeGPUForEncode << " ms" << endl;
@@ -63,7 +83,7 @@ int main()
     // CPU - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
     string compressed_filename_cpu = "output/compressed_image_cpu.bin";
     saveEncodedData(compressed_filename_cpu,
-                    y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu,
+                    y_huffman_str_cpu, cb_huffman_str_cpu, cr_huffman_str_cpu,
                     Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
 
     cout << "Compressed file (CPU) saved in: " << compressed_filename_cpu << endl;
@@ -71,7 +91,7 @@ int main()
     // GPU - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
     string compressed_filename_gpu = "output/compressed_image_gpu.bin";
     saveEncodedData(compressed_filename_gpu,
-                    y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu,
+                    y_huffman_str_gpu, cb_huffman_str_gpu, cr_huffman_str_gpu,
                     Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
     cout << "Compressed file (GPU) saved in: " << compressed_filename_cpu << endl;
 
@@ -92,14 +112,14 @@ int main()
     cout << "======================================\n\n";
 
     // CPU - Load encoded data (As EncodedData) from file and Read the rows and cols for each channel
-    EncodedData y_loaded, cb_loaded, cr_loaded;
+    string y_loaded, cb_loaded, cr_loaded;
     int y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols;
     loadEncodedData(compressed_filename_cpu,
                     y_loaded, cb_loaded, cr_loaded,
                     y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols);
 
     // GPU - Load encoded data (As EncodedData) from file and Read the rows and cols for each channel
-    EncodedData y_loaded_gpu, cb_loaded_gpu, cr_loaded_gpu;
+    string y_loaded_gpu, cb_loaded_gpu, cr_loaded_gpu;
     int y_rows_gpu, y_cols_gpu, cb_rows_gpu, cb_cols_gpu, cr_rows_gpu, cr_cols_gpu;
     loadEncodedData(compressed_filename_gpu,
                     y_loaded_gpu, cb_loaded_gpu, cr_loaded_gpu,
@@ -112,7 +132,9 @@ int main()
     double originalTimeForDecode = mainDecode(y_loaded, cb_loaded, cr_loaded,
                                               y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols,
                                               quantization_table_Y, quantization_table_CbCr,
-                                              Y_reconstructed, Cb_reconstructed, Cr_reconstructed, "CPU");
+                                              Y_reconstructed, Cb_reconstructed, Cr_reconstructed,
+                                              y_huffman_tree_cpu, cb_huffman_tree_cpu, cr_huffman_tree_cpu,
+                                              "CPU");
 
     Mat Y_reconstructed_gpu, Cb_reconstructed_gpu, Cr_reconstructed_gpu;
     cout << "Decompressed with GPU" << endl;
@@ -120,7 +142,9 @@ int main()
     double modifiedTimeGPUForDecode = mainDecode(y_loaded_gpu, cb_loaded_gpu, cr_loaded_gpu,
                                                  y_rows_gpu, y_cols_gpu, cb_rows_gpu, cb_cols_gpu, cr_rows_gpu, cr_cols_gpu,
                                                  quantization_table_Y, quantization_table_CbCr,
-                                                 Y_reconstructed_gpu, Cb_reconstructed_gpu, Cr_reconstructed_gpu, "GPU");
+                                                 Y_reconstructed_gpu, Cb_reconstructed_gpu, Cr_reconstructed_gpu,
+                                                 y_huffman_tree_gpu, cb_huffman_tree_gpu, cr_huffman_tree_gpu,
+                                                 "GPU");
 
     cout << "Decoding time (CPU): " << originalTimeForDecode << " ms" << endl;
     cout << "Decoding time (GPU): " << modifiedTimeGPUForDecode << " ms" << endl;
@@ -165,10 +189,12 @@ int main()
     imwrite(final_image_name_gpu, final_image_gpu);
 
     // Display the original and final image
-    imshow("Original Image", image);
-    imshow("Final Image (CPU)", final_image_cpu);
-    imshow("Final Image (GPU)", final_image_gpu);
-    waitKey(0);
+    // imshow("Original Image", image);
+    // imshow("Final Image (CPU)", final_image_cpu);
+    // imshow("Final Image (GPU)", final_image_gpu);
+    // waitKey(0);
+    imwrite("output/final_image_cpu.png", final_image_cpu);
+    imwrite("output/final_image_gpu.png", final_image_gpu);
 
     // Metrics for CPU
     ImageMetric metrics_cpu;
@@ -194,8 +220,8 @@ int main()
     vector<double> executionTimesForEncode = {originalTimeForEncode, modifiedTimeGPUForEncode};
     vector<double> executionTimesForDecode = {originalTimeForDecode, modifiedTimeGPUForDecode};
     vector<string> labels = {"CPU", "CUDA GPU"};
-    drawBarChart(executionTimesForEncode, labels, "Encoding Time Comparison");
-    drawBarChart(executionTimesForDecode, labels, "Decoding Time Comparison");
+    // drawBarChart(executionTimesForEncode, labels, "Encoding Time Comparison");
+    // drawBarChart(executionTimesForDecode, labels, "Decoding Time Comparison");
 
     return 0;
 }
