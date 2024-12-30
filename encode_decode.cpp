@@ -73,6 +73,45 @@ Mat RGB2YCbCr(const Mat &image)
     return ycbcr_image;
 }
 
+Mat YCbCr2RGB(const Mat &ycbcr_image)
+{
+    const array<double, 3> offset = {0.0, 128.0, 128.0};
+    const double inverse_transform[3][3] = {
+        {1.0, 0.0, 1.402},
+        {1.0, -0.344136, -0.714136},
+        {1.0, 1.772, 0.0}};
+
+    Mat rgb_image = Mat::zeros(ycbcr_image.size(), CV_8UC3);
+
+    for (int i = 0; i < ycbcr_image.rows; ++i)
+    {
+        for (int j = 0; j < ycbcr_image.cols; ++j)
+        {
+            Vec3b pixel = ycbcr_image.at<Vec3b>(i, j);
+            array<double, 3> transformed_pixel = {0.0, 0.0, 0.0};
+
+            for (int k = 0; k < 3; ++k)
+            {
+                transformed_pixel[k] = 0.0;
+                for (int l = 0; l < 3; ++l)
+                {
+                    transformed_pixel[k] += inverse_transform[k][l] * (pixel[l] - offset[l]);
+                }
+                // Clamp the values to the 0-255 range
+                transformed_pixel[k] = std::max(0.0, std::min(255.0, round(transformed_pixel[k])));
+            }
+
+            // Set the transformed R, G, B values in the rgb_image
+            rgb_image.at<Vec3b>(i, j) = Vec3b(
+                static_cast<uchar>(transformed_pixel[0]),
+                static_cast<uchar>(transformed_pixel[1]),
+                static_cast<uchar>(transformed_pixel[2]));
+        }
+    }
+
+    return rgb_image;
+}
+
 // Function to perform chroma subsampling (4:2:0)
 void chromaSubsampling(const Mat &input, Mat &Y, Mat &Cb, Mat &Cr)
 {
@@ -107,6 +146,27 @@ void chromaSubsampling(const Mat &input, Mat &Y, Mat &Cb, Mat &Cr)
                                           input.at<Vec3b>(i, j + 1)[2] +
                                           input.at<Vec3b>(i + 1, j + 1)[2]) /
                                          4;
+        }
+    }
+}
+
+void upsampleChroma(const Mat &Cb, const Mat &Cr, Mat &outputCb, Mat &outputCr, int width, int height)
+{
+    // Upsample Cb and Cr to full resolution (same size as Y channel)
+    outputCb = Mat(height, width, CV_8UC1);
+    outputCr = Mat(height, width, CV_8UC1);
+
+    for (int i = 0; i < height; i++)
+    {
+        for (int j = 0; j < width; j++)
+        {
+            // For each pixel, interpolate the Cb and Cr values
+            int x = j / 2;
+            int y = i / 2;
+
+            // Bilinear interpolation or simple replication
+            outputCb.at<uchar>(i, j) = Cb.at<uchar>(y, x); // You can replace with interpolation logic here
+            outputCr.at<uchar>(i, j) = Cr.at<uchar>(y, x); // Same for Cr
         }
     }
 }
@@ -1040,13 +1100,13 @@ double mainDecode(const string &y_loaded, const string &cb_loaded, const string 
     if (platform == "CPU")
     {
         Y_reconstructed = decodeChannel(y_loaded, y_rows, y_cols, quantization_table_Y, y_huffman_tree);
-        Cb_reconstructed = decodeChannel(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr, cb_huffman_tree);
+        Cb_reconstructed = decodeChannel(cb_loaded, cb_rows, cb_cols, quantization_table_CbCr, cb_huffman_tree);
         Cr_reconstructed = decodeChannel(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_huffman_tree);
     }
     else
     {
         Y_reconstructed = decodeChannelGPU(y_loaded, y_rows, y_cols, quantization_table_Y, y_huffman_tree);
-        Cb_reconstructed = decodeChannelGPU(cb_loaded, cb_rows, cr_rows, quantization_table_CbCr, cb_huffman_tree);
+        Cb_reconstructed = decodeChannelGPU(cb_loaded, cb_rows, cb_cols, quantization_table_CbCr, cb_huffman_tree);
         Cr_reconstructed = decodeChannelGPU(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_huffman_tree);
     }
 
@@ -1057,50 +1117,6 @@ double mainDecode(const string &y_loaded, const string &cb_loaded, const string 
     auto duration_decoding = duration_cast<milliseconds>(end_decoding - start_decoding);
     return duration_decoding.count();
 }
-
-vector<vector<int>> quantization_table_Y = {
-    {16, 11, 10, 16, 24, 40, 51, 61},
-    {12, 12, 14, 19, 26, 58, 60, 55},
-    {14, 13, 16, 24, 40, 57, 69, 56},
-    {14, 17, 22, 29, 51, 87, 80, 62},
-    {18, 22, 37, 56, 68, 109, 103, 77},
-    {24, 35, 55, 64, 81, 104, 113, 92},
-    {49, 64, 78, 87, 103, 121, 120, 101},
-    {72, 92, 95, 98, 112, 100, 103, 99},
-};
-
-// vector<vector<int>> quantization_table_Y = {
-//     {3, 2, 2, 3, 5, 8, 10, 12},
-//     {2, 2, 3, 4, 5, 12, 12, 11},
-//     {3, 3, 3, 5, 8, 11, 14, 11},
-//     {3, 3, 4, 6, 10, 17, 16, 12},
-//     {4, 4, 7, 11, 14, 22, 21, 15},
-//     {5, 7, 11, 13, 16, 12, 23, 18},
-//     {10, 13, 16, 17, 21, 24, 24, 21},
-//     {14, 18, 19, 20, 22, 20, 20, 20},
-// };
-
-vector<vector<int>> quantization_table_CbCr = {
-    {17, 18, 24, 47, 99, 99, 99, 99},
-    {18, 21, 26, 66, 99, 99, 99, 99},
-    {24, 26, 56, 99, 99, 99, 99, 99},
-    {47, 66, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-    {99, 99, 99, 99, 99, 99, 99, 99},
-};
-
-// vector<vector<int>> quantization_table_CbCr = {
-//     {11, 12, 14, 19, 26, 58, 60, 55},
-//     {12, 18, 21, 28, 32, 57, 59, 56},
-//     {14, 21, 25, 30, 59, 59, 59, 59},
-//     {19, 28, 30, 59, 59, 59, 59, 59},
-//     {26, 32, 59, 59, 59, 59, 59, 59},
-//     {58, 57, 59, 59, 59, 59, 59, 59},
-//     {60, 59, 59, 59, 59, 59, 59, 59},
-//     {55, 56, 59, 59, 59, 59, 59, 59},
-// };
 
 struct ImageMetric
 {
