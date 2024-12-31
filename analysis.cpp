@@ -106,6 +106,7 @@ int main(int argc, char *argv[])
     // Perform chroma subsampling
     Mat Y, Cb, Cr;
     chromaSubsampling(ycbcr_image, Y, Cb, Cr);
+    ycbcr_image.release();
 
     // Encode and Calculate the time for encoding
     EncodedData y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu;
@@ -215,6 +216,19 @@ int main(int argc, char *argv[])
                                                  Y_reconstructed_omp, Cb_reconstructed_omp, Cr_reconstructed_omp,
                                                  y_huffman_tree_omp, cb_huffman_tree_omp, cr_huffman_tree_omp,
                                                  "OMP");
+
+    // Release dynamically allocated Huffman tree memory for CPU, GPU, and OMP
+    delete y_huffman_tree_cpu;
+    delete cb_huffman_tree_cpu;
+    delete cr_huffman_tree_cpu;
+
+    delete y_huffman_tree_gpu;
+    delete cb_huffman_tree_gpu;
+    delete cr_huffman_tree_gpu;
+
+    delete y_huffman_tree_omp;
+    delete cb_huffman_tree_omp;
+    delete cr_huffman_tree_omp;
 
     // Resize Cb and Cr channels to match the size of Y channel
     // resize(Cb_reconstructed, Cb_reconstructed, Y_reconstructed.size(), 0, 0, INTER_LINEAR);

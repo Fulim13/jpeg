@@ -28,7 +28,6 @@ def execute(binary_path, *image_files):
             [binary_path, image_file],
             capture_output=True,
             text=True,
-            timeout=300
         )
 
         print("Captured STDOUT:", result.stdout)  # Debugging step
@@ -125,9 +124,9 @@ def execute(binary_path, *image_files):
 
     # File Size vs Encoding Gains
     axs[0].plot(sizes, encoding_gains, color='blue',
-                label='Encoding Gain', marker='o')
+                label='Encoding Gain GPU', marker='o')
     axs[0].plot(sizes, encoding_gains_omp, color='red',
-                label='Encoding Gain OMP', marker='x')
+                label='Encoding Gain OMP (2 threads)', marker='x')
     axs[0].set_title('File Size vs Encoding Gains')
     axs[0].set_xlabel('File Size (KB)')
     axs[0].set_ylabel('Performance Gain (x)')
@@ -136,9 +135,9 @@ def execute(binary_path, *image_files):
 
     # File Size vs Decoding Gains
     axs[1].plot(sizes, decoding_gains, color='green',
-                label='Decoding Gain', marker='o')
+                label='Decoding Gain GPU', marker='o')
     axs[1].plot(sizes, decoding_gains_omp, color='purple',
-                label='Decoding Gain OMP', marker='x')
+                label='Decoding Gain OMP (2 threads)', marker='x')
     axs[1].set_title('File Size vs Decoding Gains')
     axs[1].set_xlabel('File Size (KB)')
     axs[1].set_ylabel('Performance Gain (x)')
@@ -213,5 +212,5 @@ def execute(binary_path, *image_files):
 
 
 # Example usage
-execute("./analysis", "./img/01_512_Barbara.png", './img/Lenna_512.png',
-        "./img/Circle_2048.png")
+execute("./analysis", "./img/01_512_Barbara.png", './img/Lenna_512.png', './img/Boy_1024.png',
+        "./img/Circle_2048.png", "./img/8192_LargeCircle.png")

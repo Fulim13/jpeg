@@ -885,7 +885,7 @@ EncodedData encodeChannelOMP(const Mat &channel, const vector<vector<int>> &quan
     vector<vector<float>> quantize_coefficients(blocks.size());
 
     // Parallel DCT and Quantization using OpenMP
-    omp_set_num_threads(16);
+    omp_set_num_threads(2);
     // int max_threads = omp_get_max_threads();
     // std::cout << "Maximum threads: " << max_threads << std::endl;
 #pragma omp parallel for
@@ -930,6 +930,11 @@ EncodedData encodeChannelOMP(const Mat &channel, const vector<vector<int>> &quan
         combined_encoded_values.insert(combined_encoded_values.end(),
                                        rle_encoded.begin(),
                                        rle_encoded.end());
+    }
+    // After parallel section
+    for (auto &block : quantize_coefficients)
+    {
+        block.clear(); // Release memory
     }
 
     // Build Huffman tree and codes
@@ -990,7 +995,7 @@ void dequantizeInverseDCTOMP(const vector<vector<vector<float>>> &quantize_coeff
 {
     int num_blocks = quantize_coefficients.size();
     output_blocks.resize(num_blocks, vector<vector<int>>(8, vector<int>(8)));
-    omp_set_num_threads(16);
+    omp_set_num_threads(2);
 #pragma omp parallel for
     for (int b = 0; b < num_blocks; ++b)
     {

@@ -107,6 +107,7 @@ int main(int argc, char *argv[])
     // Perform chroma subsampling
     Mat Y, Cb, Cr;
     chromaSubsampling(ycbcr_image, Y, Cb, Cr);
+    ycbcr_image.release();
 
     // Encode and Calculate the time for encoding
     EncodedData y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu;
@@ -263,6 +264,19 @@ int main(int argc, char *argv[])
     cout << "Decoding Performance Improvement (OMP): " << originalTimeForDecode / modifiedTimeOMPForDecode << "x" << endl;
     cout << "======================================\n\n";
 
+    // Release dynamically allocated Huffman tree memory for CPU, GPU, and OMP
+    delete y_huffman_tree_cpu;
+    delete cb_huffman_tree_cpu;
+    delete cr_huffman_tree_cpu;
+
+    delete y_huffman_tree_gpu;
+    delete cb_huffman_tree_gpu;
+    delete cr_huffman_tree_gpu;
+
+    delete y_huffman_tree_omp;
+    delete cb_huffman_tree_omp;
+    delete cr_huffman_tree_omp;
+
     // Resize Cb and Cr channels to match the size of Y channel
     // resize(Cb_reconstructed, Cb_reconstructed, Y_reconstructed.size(), 0, 0, INTER_LINEAR);
     // resize(Cr_reconstructed, Cr_reconstructed, Y_reconstructed.size(), 0, 0, INTER_LINEAR);
@@ -331,11 +345,11 @@ int main(int argc, char *argv[])
     cout << "  PSNR: " << metrics_omp.PSNR << " dB" << endl;
     cout << "======================================\n\n";
 
-    vector<double> executionTimesForEncode = {originalTimeForEncode, modifiedTimeGPUForEncode, modifiedTimeOMPForEncode};
-    vector<double> executionTimesForDecode = {originalTimeForDecode, modifiedTimeGPUForDecode, modifiedTimeOMPForDecode};
-    vector<string> labels = {"CPU", "CUDA GPU", "OMP"};
-    drawBarChart(executionTimesForEncode, labels, "Encoding Time Comparison");
-    drawBarChart(executionTimesForDecode, labels, "Decoding Time Comparison");
+    // vector<double> executionTimesForEncode = {originalTimeForEncode, modifiedTimeGPUForEncode, modifiedTimeOMPForEncode};
+    // vector<double> executionTimesForDecode = {originalTimeForDecode, modifiedTimeGPUForDecode, modifiedTimeOMPForDecode};
+    // vector<string> labels = {"CPU", "CUDA GPU", "OMP"};
+    // drawBarChart(executionTimesForEncode, labels, "Encoding Time Comparison");
+    // drawBarChart(executionTimesForDecode, labels, "Decoding Time Comparison");
 
     return 0;
 }

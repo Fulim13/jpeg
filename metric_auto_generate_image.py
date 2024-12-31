@@ -99,8 +99,8 @@ def execute(binary_path, *args):
 # Main execution
 def main():
     start_size = 512
-    end_size = 1024
-    jump = 128
+    end_size = 4096
+    jump = 64
     output_dir = "my_generated_images"
     binary_path = "./analysis"
 
@@ -121,17 +121,27 @@ def main():
                 ':')[-1].strip())
             decoding_gain = float(result[1].split(
                 ':')[-1].strip())
-            compression_ratio_cpu = float(result[2].split(
+            encoding_gain_omp = float(result[2].split(
                 ':')[-1].strip())
-            compression_ratio_gpu = float(result[3].split(
+            decoding_gain_omp = float(result[3].split(
                 ':')[-1].strip())
-            metric_cpu_mse = float(result[4].split(
+            compression_ratio_cpu = float(result[4].split(
                 ':')[-1].strip())
-            metric_cpu_psnr = float(result[5].split(
+            compression_ratio_gpu = float(result[5].split(
                 ':')[-1].strip())
-            metric_gpu_mse = float(result[6].split(
+            compression_ratio_cpu_omp = float(result[6].split(
                 ':')[-1].strip())
-            metric_gpu_psnr = float(result[7].split(
+            metric_cpu_mse = float(result[7].split(
+                ':')[-1].strip())
+            metric_cpu_psnr = float(result[8].split(
+                ':')[-1].strip())
+            metric_gpu_mse = float(result[9].split(
+                ':')[-1].strip())
+            metric_gpu_psnr = float(result[10].split(
+                ':')[-1].strip())
+            metric_cpu_mse_omp = float(result[11].split(
+                ':')[-1].strip())
+            metric_cpu_psnr_omp = float(result[12].split(
                 ':')[-1].strip())
 
             # Get file size of the image
@@ -139,8 +149,9 @@ def main():
 
             # Append to metrics list
             metrics.append(
-                [image_file, file_size, encoding_gain, decoding_gain,
-                 compression_ratio_cpu, compression_ratio_gpu, metric_cpu_mse, metric_cpu_psnr, metric_gpu_mse, metric_gpu_psnr])
+                [image_file, file_size, encoding_gain, decoding_gain, encoding_gain_omp, decoding_gain_omp,
+                 compression_ratio_cpu, compression_ratio_gpu, compression_ratio_cpu_omp,
+                 metric_cpu_mse, metric_cpu_psnr, metric_gpu_mse, metric_gpu_psnr, metric_cpu_mse_omp, metric_cpu_psnr_omp])
 
         while result_status is False:
             # Regenerate the image
@@ -175,24 +186,28 @@ def main():
                 metric_gpu_psnr = float(result[7].split(
                     ':')[-1].strip())
 
-        # Get file size of the image
-        file_size = os.path.getsize(image_file) / 1024  # Size in KB
+                # Get file size of the image
+                file_size = os.path.getsize(image_file) / 1024  # Size in KB
 
-        # Append to metrics list
-        metrics.append(
-            [image_file, file_size, encoding_gain, decoding_gain,
-             compression_ratio_cpu, compression_ratio_gpu, metric_cpu_mse, metric_cpu_psnr, metric_gpu_mse, metric_gpu_psnr])
+                # Append to metrics list
+                metrics.append(
+                    [image_file, file_size, encoding_gain, decoding_gain, encoding_gain_omp, decoding_gain_omp,
+                     compression_ratio_cpu, compression_ratio_gpu, compression_ratio_cpu_omp,
+                     metric_cpu_mse, metric_cpu_psnr, metric_gpu_mse, metric_gpu_psnr, metric_cpu_mse_omp, metric_cpu_psnr_omp])
 
     if not metrics:
         print("No metrics to plot.")
         return
-    # Save metrics to CSV
-    csv_file = "result/metrics_fake_image.csv"
+    csv_file = "result/metrics_image_file.csv"
 
     with open(csv_file, mode='w', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow(["Image File", "File Size (KB)", "Encoding Performance Gain", "Decoding Performance Gain",
-                         "Compression Ratio (CPU)", "Compression Ratio (GPU)", "CPU MSE", "CPU PSNR", "GPU MSE", "GPU PSNR"])
+        writer.writerow([
+            "Image File", "File Size (KB)", "Encoding Performance Gain", "Decoding Performance Gain",
+            "Encoding Performance Gain (OMP)", "Decoding Performance Gain (OMP)",
+            "Compression Ratio (CPU)", "Compression Ratio (GPU)", "Compression Ratio (CPU OMP)",
+            "CPU MSE", "CPU PSNR", "GPU MSE", "GPU PSNR", "CPU MSE (OMP)", "CPU PSNR (OMP)"
+        ])
         writer.writerows(metrics)
 
     print(f"Metrics saved to {csv_file}")
@@ -201,115 +216,108 @@ def main():
     sizes = [row[1] for row in metrics]
     encoding_gains = [row[2] for row in metrics]
     decoding_gains = [row[3] for row in metrics]
-    compression_cpu = [row[4] for row in metrics]
-    compression_gpu = [row[5] for row in metrics]
-    metric_cpu_mse = [row[6] for row in metrics]
-    metric_cpu_psnr = [row[7] for row in metrics]
-    metric_gpu_mse = [row[8] for row in metrics]
-    metric_gpu_psnr = [row[9] for row in metrics]
+    encoding_gains_omp = [row[4] for row in metrics]
+    decoding_gains_omp = [row[5] for row in metrics]
+    compression_cpu = [row[6] for row in metrics]
+    compression_gpu = [row[7] for row in metrics]
+    compression_cpu_omp = [row[8] for row in metrics]
+    metric_cpu_mse = [row[9] for row in metrics]
+    metric_cpu_psnr = [row[10] for row in metrics]
+    metric_gpu_mse = [row[11] for row in metrics]
+    metric_gpu_psnr = [row[12] for row in metrics]
+    metric_cpu_mse_omp = [row[13] for row in metrics]
+    metric_cpu_psnr_omp = [row[14] for row in metrics]
 
-    # First chart: File Size vs Encoding and Decoding Gains, and Dimensions vs Gains (4 subplots)
-    fig, axs = plt.subplots(2, 2, figsize=(15, 10))
-
-    # File Size vs Encoding Gain
-    axs[0, 0].plot(sizes, encoding_gains, color='blue',
-                   label='Encoding Gain', marker='o', linestyle='-', markersize=6)
-    axs[0, 0].set_title('File Size vs Encoding Gain')
-    axs[0, 0].set_xlabel('File Size (KB)')
-    axs[0, 0].set_ylabel('Performance Gain (x)')
-    axs[0, 0].grid(True)
-    axs[0, 0].legend()
-
-    # File Size vs Decoding Gain
-    axs[0, 1].plot(sizes, decoding_gains, color='green',
-                   label='Decoding Gain', marker='x', linestyle='-', markersize=6)
-    axs[0, 1].set_title('File Size vs Decoding Gain')
-    axs[0, 1].set_xlabel('File Size (KB)')
-    axs[0, 1].set_ylabel('Performance Gain (x)')
-    axs[0, 1].grid(True)
-    axs[0, 1].legend()
-
-    # File Dimensions vs Encoding Gain
-    dimensions = [int(os.path.basename(row[0]).split('_')[2].split('x')[0])
-                  for row in metrics]  # Extract dimensions from file names
-    axs[1, 0].plot(dimensions, encoding_gains, color='red',
-                   label='Encoding Gain', marker='s', linestyle='-', markersize=6)
-    axs[1, 0].set_title('File Dimensions vs Encoding Gain')
-    axs[1, 0].set_xlabel('Image Dimension (px)')
-    axs[1, 0].set_ylabel('Performance Gain (x)')
-    axs[1, 0].grid(True)
-    axs[1, 0].legend()
-
-    # File Dimensions vs Decoding Gain
-    axs[1, 1].plot(dimensions, decoding_gains, color='purple',
-                   label='Decoding Gain', marker='d', linestyle='-', markersize=6)
-    axs[1, 1].set_title('File Dimensions vs Decoding Gain')
-    axs[1, 1].set_xlabel('Image Dimension (px)')
-    axs[1, 1].set_ylabel('Performance Gain (x)')
-    axs[1, 1].grid(True)
-    axs[1, 1].legend()
-
-    plt.tight_layout()
-    plt.savefig("result/size_and_dimensions_vs_performance_gains_fake_image.png")
-    plt.show()
-
-    print("Charts saved as 'result/size_and_dimensions_vs_performance_gains_fake_image.png'")
-
-    # Second chart: File Size vs Compression Ratios (side-by-side plots)
+    # First Plot: File Size vs Encoding/Decoding Gains
     fig, axs = plt.subplots(1, 2, figsize=(15, 5))
 
-    axs[0].plot(sizes, compression_cpu, color='orange',
-                label='Compression Ratio (CPU)', marker='o', linestyle='-', markersize=6)
+    # File Size vs Encoding Gains
+    axs[0].plot(sizes, encoding_gains, color='blue',
+                label='Encoding Gain GPU', marker='o')
+    axs[0].plot(sizes, encoding_gains_omp, color='red',
+                label='Encoding Gain OMP (2 threads)', marker='x')
+    axs[0].set_title('File Size vs Encoding Gains')
+    axs[0].set_xlabel('File Size (KB)')
+    axs[0].set_ylabel('Performance Gain (x)')
+    axs[0].grid(True)
+    axs[0].legend()
+
+    # File Size vs Decoding Gains
+    axs[1].plot(sizes, decoding_gains, color='green',
+                label='Decoding Gain GPU', marker='o')
+    axs[1].plot(sizes, decoding_gains_omp, color='purple',
+                label='Decoding Gain OMP (2 threads)', marker='x')
+    axs[1].set_title('File Size vs Decoding Gains')
+    axs[1].set_xlabel('File Size (KB)')
+    axs[1].set_ylabel('Performance Gain (x)')
+    axs[1].grid(True)
+    axs[1].legend()
+
+    plt.tight_layout()
+    plt.savefig("result/file_size_vs_gains.png")
+    plt.show()
+
+    # Second Plot: File Size vs Compression Ratios
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+
+    axs[0].plot(sizes, compression_cpu, color='blue',
+                label='Compression Ratio (CPU)', marker='o')
     axs[0].set_title('File Size vs Compression Ratio (CPU)')
     axs[0].set_xlabel('File Size (KB)')
     axs[0].set_ylabel('Compression Ratio')
     axs[0].grid(True)
     axs[0].legend()
 
-    axs[1].plot(sizes, compression_gpu, color='purple',
-                label='Compression Ratio (GPU)', marker='x', linestyle='-', markersize=6)
+    axs[1].plot(sizes, compression_gpu, color='green',
+                label='Compression Ratio (GPU)', marker='o')
     axs[1].set_title('File Size vs Compression Ratio (GPU)')
     axs[1].set_xlabel('File Size (KB)')
-    axs[1].set_ylabel('Compression Ratio')
     axs[1].grid(True)
     axs[1].legend()
 
+    axs[2].plot(sizes, compression_cpu_omp, color='red',
+                label='Compression Ratio (OMP)', marker='o')
+    axs[2].set_title('File Size vs Compression Ratio (OMP)')
+    axs[2].set_xlabel('File Size (KB)')
+    axs[2].grid(True)
+    axs[2].legend()
+
     plt.tight_layout()
-    plt.savefig("result/size_vs_compression_ratios_side_by_side.png")
+    plt.savefig("result/file_size_vs_compression_ratios.png")
     plt.show()
 
-    print("Chart saved as result/size_vs_compression_ratios_side_by_side_image_file.png")
-
-    # Third chart: MSE and PSNR metrics (2 subplots)
+    # Third Plot: File Size vs MSE and PSNR
     fig, axs = plt.subplots(1, 2, figsize=(15, 5))
 
-    # Subplot for MSE metrics (CPU and GPU)
+    # MSE Metrics
     axs[0].plot(sizes, metric_cpu_mse, color='blue',
-                label='CPU MSE', marker='o', linestyle='-', markersize=6)
-    axs[0].plot(sizes, metric_gpu_mse, color='red', label='GPU MSE',
-                marker='x', linestyle='-', markersize=6)
-    axs[0].set_title('File Size vs MSE (CPU and GPU)')
+                label='CPU MSE', marker='o')
+    axs[0].plot(sizes, metric_gpu_mse, color='green',
+                label='GPU MSE', marker='o')
+    axs[0].plot(sizes, metric_cpu_mse_omp, color='red',
+                label='OMP MSE', marker='o')
+    axs[0].set_title('File Size vs MSE')
     axs[0].set_xlabel('File Size (KB)')
-    axs[0].set_ylabel('Mean Squared Error (MSE)')
+    axs[0].set_ylabel('MSE')
     axs[0].grid(True)
     axs[0].legend()
 
-    # Subplot for PSNR metrics (CPU and GPU)
-    axs[1].plot(sizes, metric_cpu_psnr, color='green',
-                label='CPU PSNR', marker='o', linestyle='-', markersize=6)
-    axs[1].plot(sizes, metric_gpu_psnr, color='purple',
-                label='GPU PSNR', marker='x', linestyle='-', markersize=6)
-    axs[1].set_title('File Size vs PSNR (CPU and GPU)')
+    # PSNR Metrics
+    axs[1].plot(sizes, metric_cpu_psnr, color='blue',
+                label='CPU PSNR', marker='o')
+    axs[1].plot(sizes, metric_gpu_psnr, color='green',
+                label='GPU PSNR', marker='o')
+    axs[1].plot(sizes, metric_cpu_psnr_omp, color='red',
+                label='OMP PSNR', marker='o')
+    axs[1].set_title('File Size vs PSNR')
     axs[1].set_xlabel('File Size (KB)')
-    axs[1].set_ylabel('Peak Signal-to-Noise Ratio (PSNR)')
+    axs[1].set_ylabel('PSNR')
     axs[1].grid(True)
     axs[1].legend()
 
     plt.tight_layout()
-    plt.savefig("result/size_vs_mse_psnr_metrics_image_file.png")
+    plt.savefig("result/file_size_vs_mse_psnr.png")
     plt.show()
-
-    print("Chart saved as 'result/size_vs_mse_psnr_metrics_image_file.png'")
 
 
 if __name__ == "__main__":
