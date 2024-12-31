@@ -8,6 +8,7 @@
 #include <fstream>
 #include <string>
 #include <chrono>
+#include <omp.h>
 #include "kernel.cuh"
 
 using namespace std;
@@ -799,6 +800,272 @@ Mat decodeChannelGPU(const string &encoded_data, int height, int width, const ve
     return reconstructed;
 }
 
+void initDCTTableOMP(vector<vector<float>> &dct_table)
+{
+    dct_table.resize(8, vector<float>(8, 0.0f));
+    for (int i = 0; i < 8; i++)
+    {
+        float ci = (i == 0) ? 1.0f / sqrt(2.0f) : 1.0f;
+        for (int j = 0; j < 8; j++)
+        {
+            dct_table[i][j] = ci * cos((2.0 * j + 1.0) * i * M_PI / 16.0);
+        }
+    }
+}
+
+// Recentering around zero
+void recentreAroundZeroOMP(vector<vector<int>> &block)
+{
+    for (int i = 0; i < 8; ++i)
+    {
+        for (int j = 0; j < 8; ++j)
+        {
+            block[i][j] -= 128;
+        }
+    }
+}
+
+// Perform 2D DCT on a block
+void performDCTOMP(const vector<vector<int>> &block, vector<vector<float>> &dct_block, const vector<vector<float>> &dct_table)
+{
+    dct_block.resize(8, vector<float>(8, 0.0f));
+
+    // Row-wise DCT
+    vector<vector<float>> temp_block(8, vector<float>(8, 0.0f));
+    for (int u = 0; u < 8; ++u)
+    {
+        for (int v = 0; v < 8; ++v)
+        {
+            float sum = 0.0f;
+            for (int x = 0; x < 8; ++x)
+            {
+                sum += block[u][x] * dct_table[v][x];
+            }
+            temp_block[u][v] = sum;
+        }
+    }
+
+    // Column-wise DCT
+    for (int u = 0; u < 8; ++u)
+    {
+        for (int v = 0; v < 8; ++v)
+        {
+            float sum = 0.0f;
+            for (int x = 0; x < 8; ++x)
+            {
+                sum += temp_block[x][v] * dct_table[u][x];
+            }
+            dct_block[u][v] = roundf(sum / 4.0f);
+        }
+    }
+}
+
+// Perform quantization
+void quantizeBlockOMP(vector<vector<float>> &dct_block, const vector<vector<int>> &quantization_table)
+{
+    for (int i = 0; i < 8; ++i)
+    {
+        for (int j = 0; j < 8; ++j)
+        {
+            dct_block[i][j] = roundf(dct_block[i][j] / quantization_table[i][j]);
+        }
+    }
+}
+
+EncodedData encodeChannelOMP(const Mat &channel, const vector<vector<int>> &quantization_table)
+{
+    // Extract 8x8 blocks
+    vector<vector<vector<int>>> blocks;
+    extractBlocks(channel, blocks);
+
+    // Initialize DCT table
+    vector<vector<float>> dct_table;
+    initDCTTableOMP(dct_table);
+
+    vector<vector<float>> quantize_coefficients(blocks.size());
+
+    // Parallel DCT and Quantization using OpenMP
+    omp_set_num_threads(2);
+    // int max_threads = omp_get_max_threads();
+    // std::cout << "Maximum threads: " << max_threads << std::endl;
+#pragma omp parallel for
+    for (int b = 0; b < blocks.size(); ++b)
+    {
+        // Recentering around zero
+        recentreAroundZeroOMP(blocks[b]);
+
+        vector<vector<float>> dct_block;
+        performDCTOMP(blocks[b], dct_block, dct_table);
+        quantizeBlockOMP(dct_block, quantization_table);
+
+        // Flatten the quantized coefficients
+        quantize_coefficients[b].resize(64);
+        for (int i = 0; i < 8; ++i)
+        {
+            for (int j = 0; j < 8; ++j)
+            {
+                quantize_coefficients[b][i * 8 + j] = dct_block[i][j];
+            }
+        }
+    }
+
+    vector<int> combined_encoded_values;
+    for (auto &block : quantize_coefficients)
+    {
+        // Perform Zigzag
+        vector<int> zigzag;
+        vector<vector<float>> wrapped_block(8, vector<float>(8, 0.0f));
+        for (int i = 0; i < 8; ++i)
+        {
+            for (int j = 0; j < 8; ++j)
+            {
+                wrapped_block[i][j] = block[i * 8 + j];
+            }
+        }
+        zigzag_scan(wrapped_block, zigzag);
+
+        // Perform Run-length encoding
+        vector<int> rle_encoded = run_length_encode_ac(zigzag);
+
+        combined_encoded_values.insert(combined_encoded_values.end(),
+                                       rle_encoded.begin(),
+                                       rle_encoded.end());
+    }
+    // After parallel section
+    for (auto &block : quantize_coefficients)
+    {
+        block.clear(); // Release memory
+    }
+
+    // Build Huffman tree and codes
+    unordered_map<int, int> freq_dict = build_frequency_dict(combined_encoded_values);
+    HuffmanNode *huffman_tree = build_huffman_tree(freq_dict);
+
+    unordered_map<int, string> huffman_codes;
+    generate_huffman_codes(huffman_tree, "", huffman_codes);
+
+    // Perform Huffman encoding
+    string huffman_encoded_str = huffman_encode(combined_encoded_values, huffman_codes);
+
+    return {huffman_encoded_str, huffman_tree};
+}
+
+void inverseDCTOMP(const vector<vector<float>> &input, vector<vector<int>> &output)
+{
+    output.resize(8, vector<int>(8, 0));
+
+    vector<vector<float>> temp(8, vector<float>(8, 0.0f));
+
+    // // Row-wise inverse DCT
+    // #pragma omp parallel for collapse(2)
+    for (int i = 0; i < 8; ++i)
+    {
+        for (int j = 0; j < 8; ++j)
+        {
+            float sum = 0.0f;
+            for (int k = 0; k < 8; ++k)
+            {
+                float ck = (k == 0) ? 1.0f / sqrt(2.0f) : 1.0f;
+                sum += ck * input[i][k] * cos((2.0f * j + 1.0f) * k * M_PI / 16.0f);
+            }
+            temp[i][j] = sum;
+        }
+    }
+
+    // // Column-wise inverse DCT
+    // #pragma omp parallel for collapse(2)
+    for (int i = 0; i < 8; ++i)
+    {
+        for (int j = 0; j < 8; ++j)
+        {
+            float sum = 0.0f;
+            for (int k = 0; k < 8; ++k)
+            {
+                float ck = (k == 0) ? 1.0f / sqrt(2.0f) : 1.0f;
+                sum += ck * temp[k][j] * cos((2.0f * i + 1.0f) * k * M_PI / 16.0f);
+            }
+            output[i][j] = static_cast<int>(round(sum / 4.0f)) + 128;
+        }
+    }
+}
+
+void dequantizeInverseDCTOMP(const vector<vector<vector<float>>> &quantize_coefficients,
+                             const vector<vector<int>> &quantization_table,
+                             vector<vector<vector<int>>> &output_blocks)
+{
+    int num_blocks = quantize_coefficients.size();
+    output_blocks.resize(num_blocks, vector<vector<int>>(8, vector<int>(8)));
+    omp_set_num_threads(2);
+#pragma omp parallel for
+    for (int b = 0; b < num_blocks; ++b)
+    {
+        // Dequantize the block
+        vector<vector<float>> dequantized_block(8, vector<float>(8, 0.0f));
+        for (int i = 0; i < 8; ++i)
+        {
+            for (int j = 0; j < 8; ++j)
+            {
+                dequantized_block[i][j] = quantize_coefficients[b][i][j] * quantization_table[i][j];
+            }
+        }
+
+        // Perform Inverse DCT
+        inverseDCTOMP(dequantized_block, output_blocks[b]);
+    }
+}
+
+Mat decodeChannelOMP(const string &encoded_data, int height, int width,
+                     const vector<vector<int>> &quantization_table, HuffmanNode *huffman_tree)
+{
+    // Huffman decode
+    vector<int> decoded_values = huffman_decode(encoded_data, huffman_tree);
+
+    // RLE decode
+    vector<vector<int>> decoded_blocks = decodeRLE(decoded_values);
+
+    // Create vector of restored blocks
+    vector<vector<vector<float>>> restored_blocks(decoded_blocks.size(), vector<vector<float>>(8, vector<float>(8, 0.0)));
+
+    // Process each block
+    for (size_t i = 0; i < decoded_blocks.size(); ++i)
+    {
+        inverse_zigzag(decoded_blocks[i], restored_blocks[i]);
+    }
+
+    vector<vector<vector<int>>> image_blocks;
+    dequantizeInverseDCTOMP(restored_blocks, quantization_table, image_blocks);
+
+    // Create output matrix
+    Mat reconstructed = Mat::zeros(height, width, CV_8UC1);
+
+    // Copy blocks to reconstructed matrix
+    int block_row = 0, block_col = 0;
+    for (const auto &block : image_blocks)
+    {
+        for (int i = 0; i < 8; ++i)
+        {
+            for (int j = 0; j < 8; ++j)
+            {
+                int pixel_row = block_row * 8 + i;
+                int pixel_col = block_col * 8 + j;
+                if (pixel_row < height && pixel_col < width)
+                {
+                    reconstructed.at<uchar>(pixel_row, pixel_col) =
+                        static_cast<uchar>(std::clamp(block[i][j], 0, 255));
+                }
+            }
+        }
+        block_col++;
+        if (block_col * 8 >= width)
+        {
+            block_col = 0;
+            block_row++;
+        }
+    }
+
+    return reconstructed;
+}
+
 // Function to convert a Huffman-encoded string to a bitstream (vector of bytes)
 vector<unsigned char> stringToBitstream(const string &huffman_data)
 {
@@ -950,6 +1217,12 @@ double mainEncode(const Mat &Y, const Mat &Cb, const Mat &Cr,
         cb_encoded = encodeChannel(Cb, quantization_table_CbCr);
         cr_encoded = encodeChannel(Cr, quantization_table_CbCr);
     }
+    else if (platform == "OMP")
+    {
+        y_encoded = encodeChannelOMP(Y, quantization_table_Y);
+        cb_encoded = encodeChannelOMP(Cb, quantization_table_CbCr);
+        cr_encoded = encodeChannelOMP(Cr, quantization_table_CbCr);
+    }
     else
     {
         y_encoded = encodeChannelGPU(Y, quantization_table_Y);
@@ -981,6 +1254,12 @@ double mainDecode(const string &y_loaded, const string &cb_loaded, const string 
         Y_reconstructed = decodeChannel(y_loaded, y_rows, y_cols, quantization_table_Y, y_huffman_tree);
         Cb_reconstructed = decodeChannel(cb_loaded, cb_rows, cb_cols, quantization_table_CbCr, cb_huffman_tree);
         Cr_reconstructed = decodeChannel(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_huffman_tree);
+    }
+    else if (platform == "OMP")
+    {
+        Y_reconstructed = decodeChannelOMP(y_loaded, y_rows, y_cols, quantization_table_Y, y_huffman_tree);
+        Cb_reconstructed = decodeChannelOMP(cb_loaded, cb_rows, cb_cols, quantization_table_CbCr, cb_huffman_tree);
+        Cr_reconstructed = decodeChannelOMP(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_huffman_tree);
     }
     else
     {

@@ -23,14 +23,19 @@ Ctrl+Shfit+P -> C/C++: Edit Configurations (JSON) to add the open cv and cuda fo
 # How to Run the Program
 
 ```bash
-nvcc main.cpp kernel.cu -o main `pkg-config --cflags --libs opencv4`
+g++ -c -o main.o main.cpp -fopenmp `pkg-config --cflags --libs opencv4` -std=c++17
+nvcc -c -o kernel.o kernel.cu
+g++ -o main main.o kernel.o -fopenmp `pkg-config --cflags --libs opencv4` -L/usr/local/cuda/lib64 -lcudart
 ./main
 ```
 
 # How to Run the Analysis
 
 ```bash
-nvcc analysis.cpp kernel.cu -o analysis `pkg-config --cflags --libs opencv4`
+g++ -c -o analysis.o analysis.cpp -fopenmp `pkg-config --cflags --libs opencv4` -std=c++17
+nvcc -c -o kernel.o kernel.cu
+g++ -o analysis analysis.o kernel.o -fopenmp `pkg-config --cflags --libs opencv4` -L/usr/local/cuda/lib64 -lcudart
+./analysis
 ```
 
 For Auto Generation Image
