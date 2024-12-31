@@ -98,11 +98,15 @@ def execute(binary_path, *args):
 
 # Main execution
 def main():
-    start_size = 64
-    end_size = 8960
-    jump = 64
+    start_size = 512
+    end_size = 1024
+    jump = 128
     output_dir = "my_generated_images"
     binary_path = "./analysis"
+
+    # delete all files in the output directory
+    for file in os.listdir(output_dir):
+        os.remove(os.path.join(output_dir, file))
 
     image_files = generate_fake_images(start_size, end_size, jump, output_dir)
     image_files.sort()
@@ -121,13 +125,22 @@ def main():
                 ':')[-1].strip())
             compression_ratio_gpu = float(result[3].split(
                 ':')[-1].strip())
+            metric_cpu_mse = float(result[4].split(
+                ':')[-1].strip())
+            metric_cpu_psnr = float(result[5].split(
+                ':')[-1].strip())
+            metric_gpu_mse = float(result[6].split(
+                ':')[-1].strip())
+            metric_gpu_psnr = float(result[7].split(
+                ':')[-1].strip())
 
             # Get file size of the image
             file_size = os.path.getsize(image_file) / 1024  # Size in KB
 
             # Append to metrics list
             metrics.append(
-                [image_file, file_size, encoding_gain, decoding_gain, compression_ratio_cpu, compression_ratio_gpu])
+                [image_file, file_size, encoding_gain, decoding_gain,
+                 compression_ratio_cpu, compression_ratio_gpu, metric_cpu_mse, metric_cpu_psnr, metric_gpu_mse, metric_gpu_psnr])
 
         while result_status is False:
             # Regenerate the image
@@ -153,13 +166,22 @@ def main():
                     ':')[-1].strip())
                 compression_ratio_gpu = float(result[3].split(
                     ':')[-1].strip())
+                metric_cpu_mse = float(result[4].split(
+                    ':')[-1].strip())
+                metric_cpu_psnr = float(result[5].split(
+                    ':')[-1].strip())
+                metric_gpu_mse = float(result[6].split(
+                    ':')[-1].strip())
+                metric_gpu_psnr = float(result[7].split(
+                    ':')[-1].strip())
 
-                # Get file size of the image
-                file_size = os.path.getsize(image_file) / 1024  # Size in KB
+        # Get file size of the image
+        file_size = os.path.getsize(image_file) / 1024  # Size in KB
 
-                # Append to metrics list
-                metrics.append(
-                    [image_file, file_size, encoding_gain, decoding_gain, compression_ratio_cpu, compression_ratio_gpu])
+        # Append to metrics list
+        metrics.append(
+            [image_file, file_size, encoding_gain, decoding_gain,
+             compression_ratio_cpu, compression_ratio_gpu, metric_cpu_mse, metric_cpu_psnr, metric_gpu_mse, metric_gpu_psnr])
 
     if not metrics:
         print("No metrics to plot.")
@@ -181,6 +203,10 @@ def main():
     decoding_gains = [row[3] for row in metrics]
     compression_cpu = [row[4] for row in metrics]
     compression_gpu = [row[5] for row in metrics]
+    metric_cpu_mse = [row[6] for row in metrics]
+    metric_cpu_psnr = [row[7] for row in metrics]
+    metric_gpu_mse = [row[8] for row in metrics]
+    metric_gpu_psnr = [row[9] for row in metrics]
 
     # First chart: File Size vs Encoding and Decoding Gains, and Dimensions vs Gains (4 subplots)
     fig, axs = plt.subplots(2, 2, figsize=(15, 10))
@@ -253,6 +279,37 @@ def main():
     plt.show()
 
     print("Chart saved as result/size_vs_compression_ratios_side_by_side_image_file.png")
+
+    # Third chart: MSE and PSNR metrics (2 subplots)
+    fig, axs = plt.subplots(1, 2, figsize=(15, 5))
+
+    # Subplot for MSE metrics (CPU and GPU)
+    axs[0].plot(sizes, metric_cpu_mse, color='blue',
+                label='CPU MSE', marker='o', linestyle='-', markersize=6)
+    axs[0].plot(sizes, metric_gpu_mse, color='red', label='GPU MSE',
+                marker='x', linestyle='-', markersize=6)
+    axs[0].set_title('File Size vs MSE (CPU and GPU)')
+    axs[0].set_xlabel('File Size (KB)')
+    axs[0].set_ylabel('Mean Squared Error (MSE)')
+    axs[0].grid(True)
+    axs[0].legend()
+
+    # Subplot for PSNR metrics (CPU and GPU)
+    axs[1].plot(sizes, metric_cpu_psnr, color='green',
+                label='CPU PSNR', marker='o', linestyle='-', markersize=6)
+    axs[1].plot(sizes, metric_gpu_psnr, color='purple',
+                label='GPU PSNR', marker='x', linestyle='-', markersize=6)
+    axs[1].set_title('File Size vs PSNR (CPU and GPU)')
+    axs[1].set_xlabel('File Size (KB)')
+    axs[1].set_ylabel('Peak Signal-to-Noise Ratio (PSNR)')
+    axs[1].grid(True)
+    axs[1].legend()
+
+    plt.tight_layout()
+    plt.savefig("result/size_vs_mse_psnr_metrics_image_file.png")
+    plt.show()
+
+    print("Chart saved as 'result/size_vs_mse_psnr_metrics_image_file.png'")
 
 
 if __name__ == "__main__":

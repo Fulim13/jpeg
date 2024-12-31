@@ -111,6 +111,7 @@ int main(int argc, char *argv[])
     // Encode and Calculate the time for encoding
     EncodedData y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu;
     EncodedData y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu;
+    EncodedData y_encoded_omp, cb_encoded_omp, cr_encoded_omp;
     cout << "Compressed with CPU" << endl;
     cout << "======================================\n";
     double originalTimeForEncode = mainEncode(Y, Cb, Cr,
@@ -137,9 +138,24 @@ int main(int argc, char *argv[])
     string cr_huffman_str_gpu = cr_encoded_gpu.huffman_encoded_str;
     HuffmanNode *cr_huffman_tree_gpu = cr_encoded_gpu.huffman_tree;
 
+    cout << "Compressed with OMP" << endl;
+    cout << "======================================\n";
+    double modifiedTimeOMPForEncode = mainEncode(Y, Cb, Cr,
+                                                 quantization_table_Y, quantization_table_CbCr,
+                                                 y_encoded_omp, cb_encoded_omp, cr_encoded_omp, "OMP");
+
+    string y_huffman_str_omp = y_encoded_omp.huffman_encoded_str;
+    HuffmanNode *y_huffman_tree_omp = y_encoded_omp.huffman_tree;
+    string cb_huffman_str_omp = cb_encoded_omp.huffman_encoded_str;
+    HuffmanNode *cb_huffman_tree_omp = cb_encoded_omp.huffman_tree;
+    string cr_huffman_str_omp = cr_encoded_omp.huffman_encoded_str;
+    HuffmanNode *cr_huffman_tree_omp = cr_encoded_omp.huffman_tree;
+
     cout << "Encoding time (CPU): " << originalTimeForEncode << " ms" << endl;
     cout << "Encoding time (GPU): " << modifiedTimeGPUForEncode << " ms" << endl;
+    cout << "Encoding time (OMP): " << modifiedTimeOMPForEncode << " ms" << endl;
     cout << "Encoding Performance Improvement: " << originalTimeForEncode / modifiedTimeGPUForEncode << "x" << endl;
+    cout << "Encoding Performance Improvement (OMP): " << originalTimeForEncode / modifiedTimeOMPForEncode << "x" << endl;
     cout << "======================================\n\n";
 
     // CPU - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
@@ -157,6 +173,13 @@ int main(int argc, char *argv[])
                     Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
     cout << "Compressed file (GPU) saved in: " << compressed_filename_cpu << endl;
 
+    // OMP - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
+    string compressed_filename_omp = "output/compressed_image_omp.bin";
+    saveEncodedData(compressed_filename_omp,
+                    y_huffman_str_omp, cb_huffman_str_omp, cr_huffman_str_omp,
+                    Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
+    cout << "Compressed file (OMP) saved in: " << compressed_filename_omp << endl;
+
     // Stat For CPU
     CompressionStats statsCPU = calculateCompressionStats(image_name, compressed_filename_cpu);
     cout << "Original size (CPU): " << statsCPU.original_size << " bytes (" << statsCPU.original_size_kb << " KB)" << endl;
@@ -173,6 +196,14 @@ int main(int argc, char *argv[])
     cout << "Percentage reduction (GPU): " << statsGPU.percentage_reduction << "%" << endl;
     cout << "======================================\n\n";
 
+    // Stat For OMP
+    CompressionStats statsOMP = calculateCompressionStats(image_name, compressed_filename_omp);
+    cout << "Original size (OMP): " << statsOMP.original_size << " bytes (" << statsOMP.original_size_kb << " KB)" << endl;
+    cout << "Compressed size (OMP): " << statsOMP.compressed_size << " bytes (" << statsOMP.compressed_size_kb << " KB)" << endl;
+    cout << "Compression ratio (OMP): " << statsOMP.compression_ratio << endl;
+    cout << "Percentage reduction (OMP): " << statsOMP.percentage_reduction << "%" << endl;
+    cout << "======================================\n\n";
+
     // CPU - Load encoded data (As EncodedData) from file and Read the rows and cols for each channel
     string y_loaded, cb_loaded, cr_loaded;
     int y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols;
@@ -186,6 +217,13 @@ int main(int argc, char *argv[])
     loadEncodedData(compressed_filename_gpu,
                     y_loaded_gpu, cb_loaded_gpu, cr_loaded_gpu,
                     y_rows_gpu, y_cols_gpu, cb_rows_gpu, cb_cols_gpu, cr_rows_gpu, cr_cols_gpu);
+
+    // OMP - Load encoded data (As EncodedData) from file and Read the rows and cols for each channel
+    string y_loaded_omp, cb_loaded_omp, cr_loaded_omp;
+    int y_rows_omp, y_cols_omp, cb_rows_omp, cb_cols_omp, cr_rows_omp, cr_cols_omp;
+    loadEncodedData(compressed_filename_omp,
+                    y_loaded_omp, cb_loaded_omp, cr_loaded_omp,
+                    y_rows_omp, y_cols_omp, cb_rows_omp, cb_cols_omp, cr_rows_omp, cr_cols_omp);
 
     // Decode and Calculate the time for decoding
     Mat Y_reconstructed, Cb_reconstructed, Cr_reconstructed;
@@ -208,9 +246,21 @@ int main(int argc, char *argv[])
                                                  y_huffman_tree_gpu, cb_huffman_tree_gpu, cr_huffman_tree_gpu,
                                                  "GPU");
 
+    Mat Y_reconstructed_omp, Cb_reconstructed_omp, Cr_reconstructed_omp;
+    cout << "Decompressed with OMP" << endl;
+    cout << "======================================\n";
+    double modifiedTimeOMPForDecode = mainDecode(y_loaded_omp, cb_loaded_omp, cr_loaded_omp,
+                                                 y_rows_omp, y_cols_omp, cb_rows_omp, cb_cols_omp, cr_rows_omp, cr_cols_omp,
+                                                 quantization_table_Y, quantization_table_CbCr,
+                                                 Y_reconstructed_omp, Cb_reconstructed_omp, Cr_reconstructed_omp,
+                                                 y_huffman_tree_omp, cb_huffman_tree_omp, cr_huffman_tree_omp,
+                                                 "OMP");
+
     cout << "Decoding time (CPU): " << originalTimeForDecode << " ms" << endl;
     cout << "Decoding time (GPU): " << modifiedTimeGPUForDecode << " ms" << endl;
+    cout << "Decoding time (OMP): " << modifiedTimeOMPForDecode << " ms" << endl;
     cout << "Decoding Performance Improvement (GPU): " << originalTimeForDecode / modifiedTimeGPUForDecode << "x" << endl;
+    cout << "Decoding Performance Improvement (OMP): " << originalTimeForDecode / modifiedTimeOMPForDecode << "x" << endl;
     cout << "======================================\n\n";
 
     // Resize Cb and Cr channels to match the size of Y channel
@@ -221,27 +271,34 @@ int main(int argc, char *argv[])
     // resize(Cr_reconstructed_gpu, Cr_reconstructed_gpu, Y_reconstructed_gpu.size(), 0, 0, INTER_LINEAR);
     Mat Cb_reconstructed_output, Cr_reconstructed_output;
     Mat Cb_reconstructed_output_gpu, Cr_reconstructed_output_gpu;
+    Mat Cb_reconstructed_output_omp, Cr_reconstructed_output_omp;
     upsampleChroma(Cb_reconstructed, Cr_reconstructed, Cb_reconstructed_output, Cr_reconstructed_output, image.cols, image.rows);
     upsampleChroma(Cb_reconstructed_gpu, Cr_reconstructed_gpu, Cb_reconstructed_output_gpu, Cr_reconstructed_output_gpu, image.cols, image.rows);
+    upsampleChroma(Cb_reconstructed_omp, Cr_reconstructed_omp, Cb_reconstructed_output_omp, Cr_reconstructed_output_omp, image.cols, image.rows);
 
     vector<Mat> channels_cpu = {Y_reconstructed, Cb_reconstructed_output, Cr_reconstructed_output};
     vector<Mat> channels_gpu = {Y_reconstructed_gpu, Cb_reconstructed_output_gpu, Cr_reconstructed_output_gpu};
-    Mat reconstructed_image_cpu, reconstructed_image_gpu;
+    vector<Mat> channels_omp = {Y_reconstructed_omp, Cb_reconstructed_output_omp, Cr_reconstructed_output_omp};
+    Mat reconstructed_image_cpu, reconstructed_image_gpu, reconstructed_image_omp;
     merge(channels_cpu, reconstructed_image_cpu);
     merge(channels_gpu, reconstructed_image_gpu);
+    merge(channels_omp, reconstructed_image_omp);
 
-    Mat final_image_cpu, final_image_gpu;
+    Mat final_image_cpu, final_image_gpu, final_image_omp;
     // cvtColor(reconstructed_image_cpu, final_image_cpu, COLOR_YCrCb2BGR);
     // cvtColor(reconstructed_image_gpu, final_image_gpu, COLOR_YCrCb2BGR);
     final_image_cpu = YCbCr2RGB(reconstructed_image_cpu);
     final_image_gpu = YCbCr2RGB(reconstructed_image_gpu);
+    final_image_omp = YCbCr2RGB(reconstructed_image_omp);
 
     // Save the final image
-    string final_image_name_cpu = "output/final_image_cpu.png";
-    string final_image_name_gpu = "output/final_image_gpu.png";
+    string final_image_name_cpu = "output/decompress_image_cpu.png";
+    string final_image_name_gpu = "output/decompress_image_gpu.png";
+    string final_image_name_omp = "output/decompress_image_omp.png";
 
     imwrite(final_image_name_cpu, final_image_cpu);
     imwrite(final_image_name_gpu, final_image_gpu);
+    imwrite(final_image_name_omp, final_image_omp);
 
     // Metrics for CPU
     ImageMetric metrics_cpu;
@@ -252,6 +309,11 @@ int main(int argc, char *argv[])
     ImageMetric metrics_gpu;
     metrics_gpu.MSE = calculateMSE(image, final_image_gpu);
     metrics_gpu.PSNR = calculatePSNR(image, final_image_gpu);
+
+    // Metrics for OMP
+    ImageMetric metrics_omp;
+    metrics_omp.MSE = calculateMSE(image, final_image_omp);
+    metrics_omp.PSNR = calculatePSNR(image, final_image_omp);
 
     // Output the results
     cout << "Image Metrics (CPU):" << endl;
@@ -264,9 +326,14 @@ int main(int argc, char *argv[])
     cout << "  PSNR: " << metrics_gpu.PSNR << " dB" << endl;
     cout << "======================================\n\n";
 
-    vector<double> executionTimesForEncode = {originalTimeForEncode, modifiedTimeGPUForEncode};
-    vector<double> executionTimesForDecode = {originalTimeForDecode, modifiedTimeGPUForDecode};
-    vector<string> labels = {"CPU", "CUDA GPU"};
+    cout << "Image Metrics (OMP):" << endl;
+    cout << "  MSE: " << metrics_omp.MSE << endl;
+    cout << "  PSNR: " << metrics_omp.PSNR << " dB" << endl;
+    cout << "======================================\n\n";
+
+    vector<double> executionTimesForEncode = {originalTimeForEncode, modifiedTimeGPUForEncode, modifiedTimeOMPForEncode};
+    vector<double> executionTimesForDecode = {originalTimeForDecode, modifiedTimeGPUForDecode, modifiedTimeOMPForDecode};
+    vector<string> labels = {"CPU", "CUDA GPU", "OMP"};
     drawBarChart(executionTimesForEncode, labels, "Encoding Time Comparison");
     drawBarChart(executionTimesForDecode, labels, "Decoding Time Comparison");
 
