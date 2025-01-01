@@ -47,6 +47,10 @@ Unfortunately, currently the program only support quality factor of 50(default) 
 
 ![alt text](image.png)
 ![alt text](image-2.png)
+![Original Image](img/Boy_1024.png)
+![Decompressed Image CPU](output/decompress_image_cpu.png)
+![Decompressed Image GPU](output/decompress_image_gpu.png)
+![Decompressed Image OMP](output/decompress_image_omp.png)
 
 <br />
 
