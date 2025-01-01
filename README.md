@@ -1,3 +1,13 @@
+# Project Description
+
+This project implements a JPEG compression and decompression algorithm using CUDA and OpenMP. The goal is to leverage the parallel processing capabilities of CUDA and OpenMP to enhance the performance of JPEG encoding and decoding processes.
+
+# Platform
+
+- C++
+- CUDA
+- OpenMP
+
 # Install OpenCV
 
 ```bash
