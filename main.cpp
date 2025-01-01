@@ -78,20 +78,14 @@ int main(int argc, char *argv[])
         };
     }
 
-    string folder_name = "img/";
+    // string folder_name = "img/";
     string image_name = "";
 
     cout << "Enter the image name: ";
     cin >> image_name;
 
-    image_name = folder_name + image_name;
-
     // Load the image
     Mat image = readImage(image_name);
-    if (image.empty())
-    {
-        throw runtime_error("Failed to load image");
-    }
 
     ensureMultipleOf16(image);
 
@@ -345,11 +339,11 @@ int main(int argc, char *argv[])
     cout << "  PSNR: " << metrics_omp.PSNR << " dB" << endl;
     cout << "======================================\n\n";
 
-    vector<double> executionTimesForEncode = {originalTimeForEncode, modifiedTimeGPUForEncode, modifiedTimeOMPForEncode};
-    vector<double> executionTimesForDecode = {originalTimeForDecode, modifiedTimeGPUForDecode, modifiedTimeOMPForDecode};
-    vector<string> labels = {"CPU", "CUDA GPU", "OMP"};
-    drawBarChart(executionTimesForEncode, labels, "Encoding Time Comparison");
-    drawBarChart(executionTimesForDecode, labels, "Decoding Time Comparison");
+    // vector<double> executionTimesForEncode = {originalTimeForEncode, modifiedTimeGPUForEncode, modifiedTimeOMPForEncode};
+    // vector<double> executionTimesForDecode = {originalTimeForDecode, modifiedTimeGPUForDecode, modifiedTimeOMPForDecode};
+    // vector<string> labels = {"CPU", "CUDA GPU", "OMP"};
+    // drawBarChart(executionTimesForEncode, labels, "Encoding Time Comparison");
+    // drawBarChart(executionTimesForDecode, labels, "Decoding Time Comparison");
 
     return 0;
 }
