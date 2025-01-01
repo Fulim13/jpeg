@@ -155,8 +155,8 @@ int main(int argc, char *argv[])
     cout << "Encoding time (CPU): " << originalTimeForEncode << " ms" << endl;
     cout << "Encoding time (GPU): " << modifiedTimeGPUForEncode << " ms" << endl;
     cout << "Encoding time (OMP): " << modifiedTimeOMPForEncode << " ms" << endl;
-    cout << "Encoding Performance Improvement: " << originalTimeForEncode / modifiedTimeGPUForEncode << "x" << endl;
-    cout << "Encoding Performance Improvement (OMP): " << originalTimeForEncode / modifiedTimeOMPForEncode << "x" << endl;
+    cout << "Encoding Performance Improvement (CPU/GPU): " << originalTimeForEncode / modifiedTimeGPUForEncode << "x" << endl;
+    cout << "Encoding Performance Improvement (CPU/OMP): " << originalTimeForEncode / modifiedTimeOMPForEncode << "x" << endl;
     cout << "======================================\n\n";
 
     // CPU - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
@@ -260,8 +260,8 @@ int main(int argc, char *argv[])
     cout << "Decoding time (CPU): " << originalTimeForDecode << " ms" << endl;
     cout << "Decoding time (GPU): " << modifiedTimeGPUForDecode << " ms" << endl;
     cout << "Decoding time (OMP): " << modifiedTimeOMPForDecode << " ms" << endl;
-    cout << "Decoding Performance Improvement (GPU): " << originalTimeForDecode / modifiedTimeGPUForDecode << "x" << endl;
-    cout << "Decoding Performance Improvement (OMP): " << originalTimeForDecode / modifiedTimeOMPForDecode << "x" << endl;
+    cout << "Decoding Performance Improvement (CPU/GPU): " << originalTimeForDecode / modifiedTimeGPUForDecode << "x" << endl;
+    cout << "Decoding Performance Improvement (CPU/OMP): " << originalTimeForDecode / modifiedTimeOMPForDecode << "x" << endl;
     cout << "======================================\n\n";
 
     // Release dynamically allocated Huffman tree memory for CPU, GPU, and OMP
@@ -345,11 +345,11 @@ int main(int argc, char *argv[])
     cout << "  PSNR: " << metrics_omp.PSNR << " dB" << endl;
     cout << "======================================\n\n";
 
-    // vector<double> executionTimesForEncode = {originalTimeForEncode, modifiedTimeGPUForEncode, modifiedTimeOMPForEncode};
-    // vector<double> executionTimesForDecode = {originalTimeForDecode, modifiedTimeGPUForDecode, modifiedTimeOMPForDecode};
-    // vector<string> labels = {"CPU", "CUDA GPU", "OMP"};
-    // drawBarChart(executionTimesForEncode, labels, "Encoding Time Comparison");
-    // drawBarChart(executionTimesForDecode, labels, "Decoding Time Comparison");
+    vector<double> executionTimesForEncode = {originalTimeForEncode, modifiedTimeGPUForEncode, modifiedTimeOMPForEncode};
+    vector<double> executionTimesForDecode = {originalTimeForDecode, modifiedTimeGPUForDecode, modifiedTimeOMPForDecode};
+    vector<string> labels = {"CPU", "CUDA GPU", "OMP"};
+    drawBarChart(executionTimesForEncode, labels, "Encoding Time Comparison");
+    drawBarChart(executionTimesForDecode, labels, "Decoding Time Comparison");
 
     return 0;
 }

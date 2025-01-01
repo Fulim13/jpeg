@@ -291,9 +291,9 @@ int main(int argc, char *argv[])
     cout << statsOMP.compression_ratio << endl;
     cout << metrics_cpu.MSE << endl;
     cout << metrics_cpu.PSNR << endl;
-    cout << metrics_omp.MSE << endl;
     cout << metrics_gpu.MSE << endl;
     cout << metrics_gpu.PSNR << endl;
+    cout << metrics_omp.MSE << endl;
     cout << metrics_omp.PSNR << endl;
 
     return 0;

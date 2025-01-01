@@ -44,7 +44,7 @@ For Auto Generation Image
 python3 metric_auto_generate_image.py
 ```
 
-For Own Image (But need to include you image file path at the execute function in metric_image_filee.py)
+For Own Image (But need to include you image file path at the execute function in metric_image_file.py)
 
 ```
 python3 metric_image_file.py

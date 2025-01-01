@@ -186,16 +186,20 @@ CompressionStats calculateCompressionStats(const string &original_filename, cons
 {
     CompressionStats stats;
 
-    // Open the original file and calculate its size on disk
-    ifstream original_file(original_filename, ios::binary | ios::ate); // Open file and move to the end
-    if (!original_file)
+    // Read the image using OpenCV
+    cv::Mat image = cv::imread(original_filename, cv::IMREAD_COLOR); // Load in RGB format
+    if (image.empty())
     {
-        throw runtime_error("Cannot open the original file: " + original_filename);
+        throw std::runtime_error("Cannot open the image file: " + original_filename);
     }
 
-    stats.original_size = original_file.tellg(); // Get the size of the original file
+    // Calculate uncompressed size (width * height * 3 bytes per pixel)
+    int width = image.cols;
+    int height = image.rows;
+    int channels = image.channels();
+    stats.original_size = static_cast<size_t>(width * height * channels);
 
-    // Convert original size to KB
+    // Convert uncompressed size to KB
     stats.original_size_kb = static_cast<double>(stats.original_size) / 1024.0;
 
     // Open the compressed file and calculate its size
