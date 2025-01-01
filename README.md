@@ -10,11 +10,15 @@ Check the version of OpenCV installed in your system using the following command
 pkg-config --modversion opencv4
 ```
 
+<br />
+
 # Install Cuda
 
 [Install Cuda in WSL](https://www.youtube.com/watch?v=JaHVsZa2jTc&ab_channel=NVIDIADeveloper)
 
 [Cuda Installation Link](https://developer.nvidia.com/cuda-downloads)
+
+<br />
 
 # How to Compile the Main JPEG Compress and Decompress Program
 
@@ -30,10 +34,21 @@ Run it using the following command:
 ./main
 ```
 
+Additionally, If you can specify a quality factor of 90, you can run the following command:
+Unfortunately, currently the program only support quality factor of 50(default) and 90.
+
+```bash
+./main 90
+```
+
+<br />
+
 # Steps to Use the Program
 
 ![alt text](image.png)
 ![alt text](image-2.png)
+
+<br />
 
 # Result
 
@@ -50,6 +65,8 @@ As shown in Figure, the compression ratio for CPU, GPU, and OMP increases as the
 ![PSNR](result/file_size_vs_mse_psnr.png)
 
 As shown in Figure, the MSE for CPU, GPU, and OMP decreases as the image dimensions grow. Meanwhile, the PSNR increases for CPU, GPU, and OMP with larger image dimensions.
+
+<br />
 
 # How to Run the Analysis
 
@@ -79,7 +96,9 @@ In metric_image_folder.py, you can change the image folder in execute
 python3 metric_image_folder.py
 ```
 
-## Other Folder and Files
+<br />
+
+# Other Folder and Files
 
 For the example folder, it is use to test the encode and decode of a small 8x8 pixel block, so that I can understand whether any error in the encoding and decoding process. Feel feel to run the program in the example if you want to understand the encoding and decoding process.
 
@@ -94,9 +113,13 @@ For the result folder, it is use to store the result of the analysis. The result
 
 For the image_resize.py file, it is use to resize the image to the size that I want. Feel free to use it to resize the image to the size that you want.
 
+<br />
+
 ## Futher Improvement
 
 - Include More Quantization Tables with different quality
+
+<br />
 
 ## References
 
