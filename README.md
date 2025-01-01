@@ -44,7 +44,7 @@ Run it using the following command:
 ./main
 ```
 
-Additionally, If you can specify a quality factor of 90, you can run the following command:
+Additionally, you can specify a quality factor of 90, you can run the following command:
 Unfortunately, currently the program only support quality factor of 50(default) and 90.
 
 ```bash
