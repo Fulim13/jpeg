@@ -155,3 +155,5 @@ https://youtube.com/playlist?list=PLzH6n4zXuckoAod3z31QEST1ZaizBuNHh&si=UDRfOjOQ
 https://youtu.be/umTbivyJoiI?si=zywa_vVxbYHQnjSb
 
 https://youtu.be/B3y0RsVCyrw?si=HFpeQjKOG_d_6B0n
+
+https://www.imageprocessingplace.com/root_files_V3/image_databases.htm
