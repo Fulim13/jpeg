@@ -30,7 +30,7 @@ pkg-config --modversion opencv4
 
 <br />
 
-# How to Compile the Main JPEG Compress and Decompress Program
+# How to Compile the Main JPEG Compression and Decompression Program
 
 ```bash
 g++ -c -o main.o main.cpp -fopenmp `pkg-config --cflags --libs opencv4` -std=c++17
