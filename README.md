@@ -180,18 +180,18 @@ python3 metric_image_folder.py
 
 ```
 .
-├── img/                            # Sample images
-├── jpeg-concept/       		    # Test JPEG encode/decode on small 8x8 blocks
-├── opencv-concept/     	        # Test OpenCV Function
-├── output/             		    # Compressed binaries and decompressed images
-├── result/             		    # Analysis graphs and metrics
-├── analysis.cpp        		    # Performance analysis tool
-├── main.cpp            		    # Main compression/decompression program
-├── kernel.cu           		    # CUDA kernels functions
-├── image_resize.py     	        # Image resizing utility
-├── metric_image_file.py            # Image resizing utility
-├── metric_image_folder.py          # Image resizing utility
-└── draw_diff_quality_image.py      # Quality factor comparison
+├── img/                          # Sample images
+├── jpeg-concept/                 # Test JPEG encode/decode on small 8x8 blocks
+├── opencv-concept/               # Test OpenCV Function
+├── output/             	  # Compressed binaries and decompressed images
+├── result/             	  # Analysis graphs and metrics
+├── analysis.cpp        	  # Performance analysis tool
+├── main.cpp            	  # Main compression/decompression program
+├── kernel.cu           	  # CUDA kernels functions
+├── image_resize.py     	  # Image resizing utility
+├── metric_image_file.py          # Image resizing utility
+├── metric_image_folder.py        # Image resizing utility
+└── draw_diff_quality_image.py    # Quality factor comparison
 ```
 
 ## Contributing
