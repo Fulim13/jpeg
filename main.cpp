@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
     cout << "Compressed file (GPU) saved in: " << compressed_filename_cpu << endl;
 
     // OMP - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
-    string compressed_filename_omp = "output/compressed_image_omp" + to_string(quality) + ".bin";
+    string compressed_filename_omp = "output/compressed_image_omp_" + to_string(quality) + ".bin";
     saveEncodedData(compressed_filename_omp,
                     y_huffman_str_omp, cb_huffman_str_omp, cr_huffman_str_omp,
                     Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols,
@@ -296,9 +296,9 @@ int main(int argc, char *argv[])
     final_image_omp = YCbCr2RGB(reconstructed_image_omp);
 
     // Save the final image
-    string final_image_name_cpu = "output/decompress_image_cpu" + to_string(quality) + ".png";
-    string final_image_name_gpu = "output/decompress_image_gpu" + to_string(quality) + ".png";
-    string final_image_name_omp = "output/decompress_image_omp" + to_string(quality) + ".png";
+    string final_image_name_cpu = "output/decompress_image_cpu_" + to_string(quality) + ".png";
+    string final_image_name_gpu = "output/decompress_image_gpu_" + to_string(quality) + ".png";
+    string final_image_name_omp = "output/decompress_image_omp_" + to_string(quality) + ".png";
 
     imwrite(final_image_name_cpu, final_image_cpu);
     imwrite(final_image_name_gpu, final_image_gpu);
