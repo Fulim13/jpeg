@@ -1,4 +1,23 @@
 #include "encode_decode.cpp"
+vector<vector<int>> baseline_quantization_table_luminance = {
+    {16, 11, 10, 16, 24, 40, 51, 61},
+    {12, 12, 14, 19, 26, 58, 60, 55},
+    {14, 13, 16, 24, 40, 57, 69, 56},
+    {14, 17, 22, 29, 51, 87, 80, 62},
+    {18, 22, 37, 56, 68, 109, 103, 77},
+    {24, 35, 55, 64, 81, 104, 113, 92},
+    {49, 64, 78, 87, 103, 121, 120, 101},
+    {72, 92, 95, 98, 112, 100, 103, 99}};
+
+vector<vector<int>> baseline_quantization_table_chrominance = {
+    {17, 18, 24, 47, 99, 99, 99, 99},
+    {18, 21, 26, 66, 99, 99, 99, 99},
+    {24, 26, 56, 99, 99, 99, 99, 99},
+    {47, 66, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99},
+    {99, 99, 99, 99, 99, 99, 99, 99}};
 
 int main(int argc, char *argv[])
 {
@@ -6,79 +25,60 @@ int main(int argc, char *argv[])
     int quality = 50;
 
     // Parse command-line arguments
-    if (argc > 1)
+    for (int i = 1; i < argc; ++i)
     {
-        try
+        string arg = argv[i];
+        if (arg == "-q" && i + 1 < argc)
         {
-            quality = stoi(argv[1]);
-            if (quality < 1 || quality > 100)
+            try
             {
-                throw out_of_range("Quality must be between 1 and 100");
+                quality = stoi(argv[++i]);
+                if (quality < 1 || quality > 100)
+                {
+                    throw out_of_range("Quality must be between 1 and 100");
+                }
             }
-        }
-        catch (exception &e)
-        {
-            cerr << "Invalid quality argument: " << e.what() << endl;
-            return 1;
+            catch (exception &e)
+            {
+                cerr << "Invalid quality argument: " << e.what() << endl;
+                return 1;
+            }
         }
     }
 
     cout << "Using quality: " << quality << "%" << endl;
 
-    // Select quantization tables based on quality
-    vector<vector<int>> quantization_table_Y;
-    vector<vector<int>> quantization_table_CbCr;
-
-    if (quality >= 90)
+    int scaling_factor = 0;
+    if (quality < 50)
     {
-        quantization_table_Y = {
-            {3, 2, 2, 3, 5, 8, 10, 12},
-            {2, 2, 3, 4, 5, 12, 12, 11},
-            {3, 3, 3, 5, 8, 11, 14, 11},
-            {3, 3, 4, 6, 10, 17, 16, 12},
-            {4, 4, 7, 11, 14, 22, 21, 15},
-            {5, 7, 11, 13, 16, 12, 23, 18},
-            {10, 13, 16, 17, 21, 24, 24, 21},
-            {14, 18, 19, 20, 22, 20, 20, 20},
-        };
-
-        quantization_table_CbCr = {
-            {11, 12, 14, 19, 26, 58, 60, 55},
-            {12, 18, 21, 28, 32, 57, 59, 56},
-            {14, 21, 25, 30, 59, 59, 59, 59},
-            {19, 28, 30, 59, 59, 59, 59, 59},
-            {26, 32, 59, 59, 59, 59, 59, 59},
-            {58, 57, 59, 59, 59, 59, 59, 59},
-            {60, 59, 59, 59, 59, 59, 59, 59},
-            {55, 56, 59, 59, 59, 59, 59, 59},
-        };
+        // Increase the quality for lower quality values
+        scaling_factor = 5000 / quality;
     }
     else
     {
-        quantization_table_Y = {
-            {16, 11, 10, 16, 24, 40, 51, 61},
-            {12, 12, 14, 19, 26, 58, 60, 55},
-            {14, 13, 16, 24, 40, 57, 69, 56},
-            {14, 17, 22, 29, 51, 87, 80, 62},
-            {18, 22, 37, 56, 68, 109, 103, 77},
-            {24, 35, 55, 64, 81, 104, 113, 92},
-            {49, 64, 78, 87, 103, 121, 120, 101},
-            {72, 92, 95, 98, 112, 100, 103, 99},
-        };
-
-        quantization_table_CbCr = {
-            {17, 18, 24, 47, 99, 99, 99, 99},
-            {18, 21, 26, 66, 99, 99, 99, 99},
-            {24, 26, 56, 99, 99, 99, 99, 99},
-            {47, 66, 99, 99, 99, 99, 99, 99},
-            {99, 99, 99, 99, 99, 99, 99, 99},
-            {99, 99, 99, 99, 99, 99, 99, 99},
-            {99, 99, 99, 99, 99, 99, 99, 99},
-            {99, 99, 99, 99, 99, 99, 99, 99},
-        };
+        // Decrease the quality for higher quality values
+        scaling_factor = 200 - quality * 2;
     }
 
-    // string folder_name = "img/";
+    // Scale quantization tables based on quality
+    vector<vector<int>> quantization_table_Y = baseline_quantization_table_luminance;
+    for (auto &row : quantization_table_Y)
+    {
+        for (int &val : row)
+        {
+            val = max(1, min(255, (val * scaling_factor + 50) / 100));
+        }
+    }
+
+    vector<vector<int>> quantization_table_CbCr = baseline_quantization_table_chrominance;
+    for (auto &row : quantization_table_CbCr)
+    {
+        for (int &val : row)
+        {
+            val = max(1, min(255, (val * scaling_factor + 50) / 100));
+        }
+    }
+
     string image_name = "";
 
     cout << "Enter the image name: ";
@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
     cout << "======================================\n\n";
 
     // CPU - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
-    string compressed_filename_cpu = "output/compressed_image_cpu.bin";
+    string compressed_filename_cpu = "output/compressed_image_cpu_" + to_string(quality) + ".bin";
     saveEncodedData(compressed_filename_cpu,
                     y_huffman_str_cpu, cb_huffman_str_cpu, cr_huffman_str_cpu,
                     Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols,
@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
     cout << "Compressed file (CPU) saved in: " << compressed_filename_cpu << endl;
 
     // GPU - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
-    string compressed_filename_gpu = "output/compressed_image_gpu.bin";
+    string compressed_filename_gpu = "output/compressed_image_gpu_" + to_string(quality) + ".bin";
     saveEncodedData(compressed_filename_gpu,
                     y_huffman_str_gpu, cb_huffman_str_gpu, cr_huffman_str_gpu,
                     Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols,
@@ -171,7 +171,7 @@ int main(int argc, char *argv[])
     cout << "Compressed file (GPU) saved in: " << compressed_filename_cpu << endl;
 
     // OMP - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
-    string compressed_filename_omp = "output/compressed_image_omp.bin";
+    string compressed_filename_omp = "output/compressed_image_omp" + to_string(quality) + ".bin";
     saveEncodedData(compressed_filename_omp,
                     y_huffman_str_omp, cb_huffman_str_omp, cr_huffman_str_omp,
                     Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols,
@@ -296,9 +296,9 @@ int main(int argc, char *argv[])
     final_image_omp = YCbCr2RGB(reconstructed_image_omp);
 
     // Save the final image
-    string final_image_name_cpu = "output/decompress_image_cpu.png";
-    string final_image_name_gpu = "output/decompress_image_gpu.png";
-    string final_image_name_omp = "output/decompress_image_omp.png";
+    string final_image_name_cpu = "output/decompress_image_cpu" + to_string(quality) + ".png";
+    string final_image_name_gpu = "output/decompress_image_gpu" + to_string(quality) + ".png";
+    string final_image_name_omp = "output/decompress_image_omp" + to_string(quality) + ".png";
 
     imwrite(final_image_name_cpu, final_image_cpu);
     imwrite(final_image_name_gpu, final_image_gpu);

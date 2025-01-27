@@ -281,7 +281,7 @@ void dct(const vector<vector<int>> &image_block, vector<vector<float>> &dct_bloc
             }
 
             // 100 / 100 because of round to 2 decimal places
-            dct_block[u][v] = round(0.25 * cu * cv * sum_val);
+            dct_block[u][v] = round(0.25 * cu * cv * sum_val * 100) / 100;
         }
     }
 }
@@ -875,7 +875,7 @@ void performDCTOMP(const vector<vector<int>> &block, vector<vector<float>> &dct_
             {
                 sum += temp_block[x][v] * dct_table[u][x];
             }
-            dct_block[u][v] = roundf(sum / 4.0f);
+            dct_block[u][v] = roundf(sum / 4.0f * 100) / 100;
         }
     }
 }
