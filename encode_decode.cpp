@@ -597,7 +597,7 @@ void add_back_128(vector<vector<int>> &image_block)
 struct EncodedData
 {
     string huffman_encoded_str;
-    HuffmanNode *huffman_tree;
+    unordered_map<int, int> freq_dict;
 };
 
 EncodedData encodeChannel(const Mat &channel, const vector<vector<int>> &quantization_table)
@@ -645,11 +645,14 @@ EncodedData encodeChannel(const Mat &channel, const vector<vector<int>> &quantiz
     // Perform Huffman encoding
     string huffman_encoded_str = huffman_encode(combined_encoded_values, huffman_codes);
 
-    return {huffman_encoded_str, huffman_tree};
+    return {huffman_encoded_str, freq_dict};
 }
 
-Mat decodeChannel(const string &encoded_data, int height, int width, const vector<vector<int>> &quantization_table, HuffmanNode *huffman_tree)
+Mat decodeChannel(const string &encoded_data, int height, int width, const vector<vector<int>> &quantization_table, const unordered_map<int, int> &freq_dict)
 {
+    // Rebuild Huffman tree from frequency dictionary
+    HuffmanNode *huffman_tree = build_huffman_tree(freq_dict);
+
     // Huffman decode
     vector<int> decoded_values = huffman_decode(encoded_data, huffman_tree);
 
@@ -748,11 +751,14 @@ EncodedData encodeChannelGPU(const Mat &channel, const vector<vector<int>> &quan
     // Perform Huffman encoding
     string huffman_encoded_str = huffman_encode(combined_encoded_values, huffman_codes);
 
-    return {huffman_encoded_str, huffman_tree};
+    return {huffman_encoded_str, freq_dict};
 }
 
-Mat decodeChannelGPU(const string &encoded_data, int height, int width, const vector<vector<int>> &quantization_table, HuffmanNode *huffman_tree)
+Mat decodeChannelGPU(const string &encoded_data, int height, int width, const vector<vector<int>> &quantization_table, const unordered_map<int, int> &freq_dict)
 {
+    // Rebuild Huffman tree from frequency dictionary
+    HuffmanNode *huffman_tree = build_huffman_tree(freq_dict);
+
     // Huffman decode
     vector<int> decoded_values = huffman_decode(encoded_data, huffman_tree);
 
@@ -951,7 +957,7 @@ EncodedData encodeChannelOMP(const Mat &channel, const vector<vector<int>> &quan
     // Perform Huffman encoding
     string huffman_encoded_str = huffman_encode(combined_encoded_values, huffman_codes);
 
-    return {huffman_encoded_str, huffman_tree};
+    return {huffman_encoded_str, freq_dict};
 }
 
 void inverseDCTOMP(const vector<vector<float>> &input, vector<vector<int>> &output)
@@ -1019,8 +1025,11 @@ void dequantizeInverseDCTOMP(const vector<vector<vector<float>>> &quantize_coeff
 }
 
 Mat decodeChannelOMP(const string &encoded_data, int height, int width,
-                     const vector<vector<int>> &quantization_table, HuffmanNode *huffman_tree)
+                     const vector<vector<int>> &quantization_table, const unordered_map<int, int> &freq_dict)
 {
+    // Rebuild Huffman tree from frequency dictionary
+    HuffmanNode *huffman_tree = build_huffman_tree(freq_dict);
+
     // Huffman decode
     vector<int> decoded_values = huffman_decode(encoded_data, huffman_tree);
 
@@ -1130,7 +1139,8 @@ string bitstreamToString(const vector<unsigned char> &bitstream, int total_bits)
 
 void saveEncodedData(const string &filename,
                      const string &y_data, const string &cb_data, const string &cr_data,
-                     int y_rows, int y_cols, int cb_rows, int cb_cols, int cr_rows, int cr_cols)
+                     int y_rows, int y_cols, int cb_rows, int cb_cols, int cr_rows, int cr_cols,
+                     const unordered_map<int, int> &y_freq_dict, const unordered_map<int, int> &cb_freq_dict, const unordered_map<int, int> &cr_freq_dict)
 {
     ofstream file(filename, ios::binary);
     if (!file)
@@ -1165,12 +1175,28 @@ void saveEncodedData(const string &filename,
     file.write(reinterpret_cast<const char *>(cb_bitstream.data()), cb_len);
     file.write(reinterpret_cast<const char *>(cr_bitstream.data()), cr_len);
 
+    // Write the frequency dictionaries
+    int y_dict_size = y_freq_dict.size();
+    int cb_dict_size = cb_freq_dict.size();
+    int cr_dict_size = cr_freq_dict.size();
+
+    file.write(reinterpret_cast<const char *>(&y_dict_size), sizeof(int));
+    file.write(reinterpret_cast<const char *>(&cb_dict_size), sizeof(int));
+    file.write(reinterpret_cast<const char *>(&cr_dict_size), sizeof(int));
+
+    for (const auto &pair : y_freq_dict)
+    {
+        file.write(reinterpret_cast<const char *>(&pair.first), sizeof(int));
+        file.write(reinterpret_cast<const char *>(&pair.second), sizeof(int));
+    }
+
     file.close();
 }
 
 void loadEncodedData(const string &filename,
                      string &y_data, string &cb_data, string &cr_data,
-                     int &y_rows, int &y_cols, int &cb_rows, int &cb_cols, int &cr_rows, int &cr_cols)
+                     int &y_rows, int &y_cols, int &cb_rows, int &cb_cols, int &cr_rows, int &cr_cols,
+                     unordered_map<int, int> &y_freq_dict, unordered_map<int, int> &cb_freq_dict, unordered_map<int, int> &cr_freq_dict)
 {
     ifstream file(filename, ios::binary);
     if (!file)
@@ -1204,6 +1230,36 @@ void loadEncodedData(const string &filename,
     y_data = bitstreamToString(y_bitstream, y_len * 8); // 8 bits per byte
     cb_data = bitstreamToString(cb_bitstream, cb_len * 8);
     cr_data = bitstreamToString(cr_bitstream, cr_len * 8);
+
+    // Read the frequency dictionaries
+    int y_dict_size, cb_dict_size, cr_dict_size;
+    file.read(reinterpret_cast<char *>(&y_dict_size), sizeof(int));
+    file.read(reinterpret_cast<char *>(&cb_dict_size), sizeof(int));
+    file.read(reinterpret_cast<char *>(&cr_dict_size), sizeof(int));
+
+    for (int i = 0; i < y_dict_size; ++i)
+    {
+        int key, value;
+        file.read(reinterpret_cast<char *>(&key), sizeof(int));
+        file.read(reinterpret_cast<char *>(&value), sizeof(int));
+        y_freq_dict[key] = value;
+    }
+
+    for (int i = 0; i < cb_dict_size; ++i)
+    {
+        int key, value;
+        file.read(reinterpret_cast<char *>(&key), sizeof(int));
+        file.read(reinterpret_cast<char *>(&value), sizeof(int));
+        cb_freq_dict[key] = value;
+    }
+
+    for (int i = 0; i < cr_dict_size; ++i)
+    {
+        int key, value;
+        file.read(reinterpret_cast<char *>(&key), sizeof(int));
+        file.read(reinterpret_cast<char *>(&value), sizeof(int));
+        cr_freq_dict[key] = value;
+    }
 }
 
 double mainEncode(const Mat &Y, const Mat &Cb, const Mat &Cr,
@@ -1246,7 +1302,7 @@ double mainDecode(const string &y_loaded, const string &cb_loaded, const string 
                   const vector<vector<int>> &quantization_table_Y,
                   const vector<vector<int>> &quantization_table_CbCr,
                   Mat &Y_reconstructed, Mat &Cb_reconstructed, Mat &Cr_reconstructed,
-                  HuffmanNode *y_huffman_tree, HuffmanNode *cb_huffman_tree, HuffmanNode *cr_huffman_tree,
+                  const unordered_map<int, int> &y_freq_dict, const unordered_map<int, int> &cb_freq_dict, const unordered_map<int, int> &cr_freq_dict,
                   string platform)
 {
     // Measure decoding time for GPU
@@ -1255,21 +1311,21 @@ double mainDecode(const string &y_loaded, const string &cb_loaded, const string 
     // Decode each channel
     if (platform == "CPU")
     {
-        Y_reconstructed = decodeChannel(y_loaded, y_rows, y_cols, quantization_table_Y, y_huffman_tree);
-        Cb_reconstructed = decodeChannel(cb_loaded, cb_rows, cb_cols, quantization_table_CbCr, cb_huffman_tree);
-        Cr_reconstructed = decodeChannel(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_huffman_tree);
+        Y_reconstructed = decodeChannel(y_loaded, y_rows, y_cols, quantization_table_Y, y_freq_dict);
+        Cb_reconstructed = decodeChannel(cb_loaded, cb_rows, cb_cols, quantization_table_CbCr, cb_freq_dict);
+        Cr_reconstructed = decodeChannel(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_freq_dict);
     }
     else if (platform == "OMP")
     {
-        Y_reconstructed = decodeChannelOMP(y_loaded, y_rows, y_cols, quantization_table_Y, y_huffman_tree);
-        Cb_reconstructed = decodeChannelOMP(cb_loaded, cb_rows, cb_cols, quantization_table_CbCr, cb_huffman_tree);
-        Cr_reconstructed = decodeChannelOMP(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_huffman_tree);
+        Y_reconstructed = decodeChannelOMP(y_loaded, y_rows, y_cols, quantization_table_Y, y_freq_dict);
+        Cb_reconstructed = decodeChannelOMP(cb_loaded, cb_rows, cb_cols, quantization_table_CbCr, cb_freq_dict);
+        Cr_reconstructed = decodeChannelOMP(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_freq_dict);
     }
     else
     {
-        Y_reconstructed = decodeChannelGPU(y_loaded, y_rows, y_cols, quantization_table_Y, y_huffman_tree);
-        Cb_reconstructed = decodeChannelGPU(cb_loaded, cb_rows, cb_cols, quantization_table_CbCr, cb_huffman_tree);
-        Cr_reconstructed = decodeChannelGPU(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_huffman_tree);
+        Y_reconstructed = decodeChannelGPU(y_loaded, y_rows, y_cols, quantization_table_Y, y_freq_dict);
+        Cb_reconstructed = decodeChannelGPU(cb_loaded, cb_rows, cb_cols, quantization_table_CbCr, cb_freq_dict);
+        Cr_reconstructed = decodeChannelGPU(cr_loaded, cr_rows, cr_cols, quantization_table_CbCr, cr_freq_dict);
     }
 
     // Measure the end of decoding time
