@@ -182,7 +182,7 @@ python3 metric_image_folder.py
 ├── output/             	  # Compressed binaries and decompressed images
 ├── result/             	  # Analysis graphs and metrics
 ├── analysis.cpp        	  # Performance analysis tool
-├── encode_decode.cpp         # Compression/decompression logic
+├── encode_decode.cpp             # Compression/decompression logic
 ├── main.cpp            	  # Main compression/decompression program
 ├── kernel.cu           	  # CUDA kernels functions
 ├── image_resize.py     	  # Image resizing utility
