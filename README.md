@@ -47,8 +47,7 @@ It includes a custom binary format for compressed data storage and tools to anal
   sudo apt-get install libopencv-dev
   ```
 - **CUDA Toolkit 11.0+** (for GPU acceleration)
-- 
-  [Installation Guide](https://developer.nvidia.com/cuda-downloads)
+- [Installation Guide](https://developer.nvidia.com/cuda-downloads)
 
   [WSL Installation](https://www.youtube.com/watch?v=JaHVsZa2jTc&ab_channel=NVIDIADeveloper)
 
@@ -126,14 +125,6 @@ The compressed data is stored in a custom binary format with the following heade
 
 ![Binary Header Structure](readme_img/image-3.png)
 
-**Header Fields**:
-
-- `quality_factor`: JPEG quality (1-100)
-- `height`, `width`: Original image dimensions
-- `channel`: Color channels (3 for RGB)
-- `dqt`: Quantization tables
-- `compressed_data`: Huffman-encoded coefficients
-
 ## Performance Results
 
 For this comparison between CUDA and OMP, we analyzed encoding gains, decoding gains, compression ratios, MSE, and PSNR using the Lena image, ranging in size from 512×512 px to 8192×8192 px.
@@ -155,6 +146,7 @@ For this comparison between CUDA and OMP, we analyzed encoding gains, decoding g
 
 ![MSE and PSNR](result/file_size_vs_mse_psnr.png)
 
+- **MSE < 45** for all modes, indicating minimal error.
 - **PSNR > 30 dB** for all modes, indicating good reconstruction quality.
 
 ## Analysis Tools
@@ -183,12 +175,14 @@ python3 metric_image_folder.py
 
 ```
 .
+├── docs/                         # Documentation files
 ├── img/                          # Sample images
 ├── jpeg-concept/                 # Test JPEG encode/decode on small 8x8 blocks
 ├── opencv-concept/               # Test OpenCV Function
 ├── output/             	  # Compressed binaries and decompressed images
 ├── result/             	  # Analysis graphs and metrics
 ├── analysis.cpp        	  # Performance analysis tool
+├── encode_decode.cpp         # Compression/decompression logic
 ├── main.cpp            	  # Main compression/decompression program
 ├── kernel.cu           	  # CUDA kernels functions
 ├── image_resize.py     	  # Image resizing utility
