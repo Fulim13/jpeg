@@ -61,8 +61,7 @@ void dct(const vector<vector<int>> &image_block, vector<vector<float>> &dct_bloc
                 }
             }
 
-            // 100 / 100 because of round to 2 decimal places
-            dct_block[u][v] = round(0.25 * cu * cv * sum_val);
+            dct_block[u][v] = round(0.25 * cu * cv * sum_val * 100) / 100.0;
         }
     }
 }
@@ -277,7 +276,7 @@ vector<int> huffman_decode(const string &encoded_str, HuffmanNode *root)
     return decoded_values;
 }
 
-vector<vector<int>> quantization_table = {
+vector<vector<int>> baseline_quantization_table = {
     {16, 11, 10, 16, 24, 40, 51, 61},
     {12, 12, 14, 19, 26, 58, 60, 55},
     {14, 13, 16, 24, 40, 57, 69, 56},
@@ -434,8 +433,56 @@ void add_back_128(vector<vector<int>> &image_block)
     }
 }
 
-int main()
+int main(int argc, char *argv[])
 {
+    // Default quality percentage
+    int quality = 50;
+
+    // Parse command-line arguments
+    for (int i = 1; i < argc; ++i)
+    {
+        string arg = argv[i];
+        if (arg == "-q" && i + 1 < argc)
+        {
+            try
+            {
+                quality = stoi(argv[++i]);
+                if (quality < 1 || quality > 100)
+                {
+                    throw out_of_range("Quality must be between 1 and 100");
+                }
+            }
+            catch (exception &e)
+            {
+                cerr << "Invalid quality argument: " << e.what() << endl;
+                return 1;
+            }
+        }
+    }
+
+    cout << "Using quality: " << quality << "%" << endl;
+
+    if (quality < 50)
+    {
+        // Increase the quality for lower quality values
+        quality = 5000 / quality;
+    }
+    else
+    {
+        // Decrease the quality for higher quality values
+        quality = 200 - quality * 2;
+    }
+
+    // Scale quantization tables based on quality
+    vector<vector<int>> quantization_table = baseline_quantization_table;
+    for (auto &row : quantization_table)
+    {
+        for (int &val : row)
+        {
+            val = max(1, min(255, (val * quality + 50) / 100));
+        }
+    }
+
     vector<vector<vector<int>>> image_blocks = {
         {{52, 55, 61, 66, 70, 61, 64, 73},
          {63, 59, 55, 90, 109, 85, 69, 72},
