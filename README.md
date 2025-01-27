@@ -109,7 +109,7 @@ It includes a custom binary format for compressed data storage and tools to anal
 
 | Original Image (1024×1024)           | CPU Decompressed (QF=50)                   | GPU Decompressed (QF=50)                   | OpenMP Decompressed (QF=50)                |
 | ------------------------------------ | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ |
-| ![Original](img/lena_color_1024.tif) | ![CPU](output/decompress_image_cpu_50.png) | ![GPU](output/decompress_image_gpu_50.png) | ![OMP](output/decompress_image_omp_50.png) |
+| ![Original](img/lena_color_1024.png) | ![CPU](output/decompress_image_cpu_50.png) | ![GPU](output/decompress_image_gpu_50.png) | ![OMP](output/decompress_image_omp_50.png) |
 
 ### Compression Quality Comparison
 
