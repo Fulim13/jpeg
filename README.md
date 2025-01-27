@@ -136,6 +136,8 @@ The compressed data is stored in a custom binary format with the following heade
 
 ## Performance Results
 
+For this comparison between CUDA and OMP, we analyzed encoding gains, decoding gains, compression ratios, MSE, and PSNR using the Lena image, ranging in size from 512×512 px to 8192×8192 px.
+
 ### Speed Gains vs Image Size
 
 ![Encoding/Decoding Gains](result/file_size_vs_gains.png)
