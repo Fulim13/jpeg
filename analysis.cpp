@@ -117,51 +117,54 @@ int main(int argc, char *argv[])
                                               y_encoded_cpu, cb_encoded_cpu, cr_encoded_cpu, "CPU");
 
     string y_huffman_str_cpu = y_encoded_cpu.huffman_encoded_str;
-    HuffmanNode *y_huffman_tree_cpu = y_encoded_cpu.huffman_tree;
+    const unordered_map<int, int> y_freq_dict = y_encoded_cpu.freq_dict;
     string cb_huffman_str_cpu = cb_encoded_cpu.huffman_encoded_str;
-    HuffmanNode *cb_huffman_tree_cpu = cb_encoded_cpu.huffman_tree;
+    const unordered_map<int, int> cb_freq_dict = cb_encoded_cpu.freq_dict;
     string cr_huffman_str_cpu = cr_encoded_cpu.huffman_encoded_str;
-    HuffmanNode *cr_huffman_tree_cpu = cr_encoded_cpu.huffman_tree;
+    const unordered_map<int, int> cr_freq_dict = cr_encoded_cpu.freq_dict;
 
     double modifiedTimeGPUForEncode = mainEncode(Y, Cb, Cr,
                                                  quantization_table_Y, quantization_table_CbCr,
                                                  y_encoded_gpu, cb_encoded_gpu, cr_encoded_gpu, "GPU");
 
     string y_huffman_str_gpu = y_encoded_gpu.huffman_encoded_str;
-    HuffmanNode *y_huffman_tree_gpu = y_encoded_gpu.huffman_tree;
+    const unordered_map<int, int> y_freq_dict_gpu = y_encoded_gpu.freq_dict;
     string cb_huffman_str_gpu = cb_encoded_gpu.huffman_encoded_str;
-    HuffmanNode *cb_huffman_tree_gpu = cb_encoded_gpu.huffman_tree;
+    const unordered_map<int, int> cb_freq_dict_gpu = cb_encoded_gpu.freq_dict;
     string cr_huffman_str_gpu = cr_encoded_gpu.huffman_encoded_str;
-    HuffmanNode *cr_huffman_tree_gpu = cr_encoded_gpu.huffman_tree;
+    const unordered_map<int, int> cr_freq_dict_gpu = cr_encoded_gpu.freq_dict;
 
     double modifiedTimeOMPForEncode = mainEncode(Y, Cb, Cr,
                                                  quantization_table_Y, quantization_table_CbCr,
                                                  y_encoded_omp, cb_encoded_omp, cr_encoded_omp, "OMP");
 
     string y_huffman_str_omp = y_encoded_omp.huffman_encoded_str;
-    HuffmanNode *y_huffman_tree_omp = y_encoded_omp.huffman_tree;
+    const unordered_map<int, int> y_freq_dict_omp = y_encoded_omp.freq_dict;
     string cb_huffman_str_omp = cb_encoded_omp.huffman_encoded_str;
-    HuffmanNode *cb_huffman_tree_omp = cb_encoded_omp.huffman_tree;
+    const unordered_map<int, int> cb_freq_dict_omp = cb_encoded_omp.freq_dict;
     string cr_huffman_str_omp = cr_encoded_omp.huffman_encoded_str;
-    HuffmanNode *cr_huffman_tree_omp = cr_encoded_omp.huffman_tree;
+    const unordered_map<int, int> cr_freq_dict_omp = cr_encoded_omp.freq_dict;
 
     // CPU - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
     string compressed_filename_cpu = "output/compressed_image_cpu.bin";
     saveEncodedData(compressed_filename_cpu,
                     y_huffman_str_cpu, cb_huffman_str_cpu, cr_huffman_str_cpu,
-                    Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
+                    Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols,
+                    y_freq_dict, cb_freq_dict, cr_freq_dict);
 
     // GPU - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
     string compressed_filename_gpu = "output/compressed_image_gpu.bin";
     saveEncodedData(compressed_filename_gpu,
                     y_huffman_str_gpu, cb_huffman_str_gpu, cr_huffman_str_gpu,
-                    Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
+                    Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols,
+                    y_freq_dict_gpu, cb_freq_dict_gpu, cr_freq_dict_gpu);
 
     // OMP - Save three encoded data (EncodedData) and rows and cols for each channel to one bin file
     string compressed_filename_omp = "output/compressed_image_omp.bin";
     saveEncodedData(compressed_filename_omp,
                     y_huffman_str_omp, cb_huffman_str_omp, cr_huffman_str_omp,
-                    Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols);
+                    Y.rows, Y.cols, Cb.rows, Cb.cols, Cr.rows, Cr.cols,
+                    y_freq_dict_omp, cb_freq_dict_omp, cr_freq_dict_omp);
 
     // Stat For CPU
     CompressionStats statsCPU = calculateCompressionStats(image_path, compressed_filename_cpu);
@@ -175,23 +178,29 @@ int main(int argc, char *argv[])
     // CPU - Load encoded data (As EncodedData) from file and Read the rows and cols for each channel
     string y_loaded, cb_loaded, cr_loaded;
     int y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols;
+    unordered_map<int, int> y_loaded_freq_dict, cb_loaded_freq_dict, cr_loaded_freq_dict;
     loadEncodedData(compressed_filename_cpu,
                     y_loaded, cb_loaded, cr_loaded,
-                    y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols);
+                    y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols,
+                    y_loaded_freq_dict, cb_loaded_freq_dict, cr_loaded_freq_dict);
 
     // GPU - Load encoded data (As EncodedData) from file and Read the rows and cols for each channel
     string y_loaded_gpu, cb_loaded_gpu, cr_loaded_gpu;
     int y_rows_gpu, y_cols_gpu, cb_rows_gpu, cb_cols_gpu, cr_rows_gpu, cr_cols_gpu;
+    unordered_map<int, int> y_loaded_freq_dict_gpu, cb_loaded_freq_dict_gpu, cr_loaded_freq_dict_gpu;
     loadEncodedData(compressed_filename_gpu,
                     y_loaded_gpu, cb_loaded_gpu, cr_loaded_gpu,
-                    y_rows_gpu, y_cols_gpu, cb_rows_gpu, cb_cols_gpu, cr_rows_gpu, cr_cols_gpu);
+                    y_rows_gpu, y_cols_gpu, cb_rows_gpu, cb_cols_gpu, cr_rows_gpu, cr_cols_gpu,
+                    y_loaded_freq_dict_gpu, cb_loaded_freq_dict_gpu, cr_loaded_freq_dict_gpu);
 
     // OMP - Load encoded data (As EncodedData) from file and Read the rows and cols for each channel
     string y_loaded_omp, cb_loaded_omp, cr_loaded_omp;
     int y_rows_omp, y_cols_omp, cb_rows_omp, cb_cols_omp, cr_rows_omp, cr_cols_omp;
+    unordered_map<int, int> y_loaded_freq_dict_omp, cb_loaded_freq_dict_omp, cr_loaded_freq_dict_omp;
     loadEncodedData(compressed_filename_omp,
                     y_loaded_omp, cb_loaded_omp, cr_loaded_omp,
-                    y_rows_omp, y_cols_omp, cb_rows_omp, cb_cols_omp, cr_rows_omp, cr_cols_omp);
+                    y_rows_omp, y_cols_omp, cb_rows_omp, cb_cols_omp, cr_rows_omp, cr_cols_omp,
+                    y_loaded_freq_dict_omp, cb_loaded_freq_dict_omp, cr_loaded_freq_dict_omp);
 
     // Decode and Calculate the time for decoding
     Mat Y_reconstructed, Cb_reconstructed, Cr_reconstructed;
@@ -199,7 +208,7 @@ int main(int argc, char *argv[])
                                               y_rows, y_cols, cb_rows, cb_cols, cr_rows, cr_cols,
                                               quantization_table_Y, quantization_table_CbCr,
                                               Y_reconstructed, Cb_reconstructed, Cr_reconstructed,
-                                              y_huffman_tree_cpu, cb_huffman_tree_cpu, cr_huffman_tree_cpu,
+                                              y_loaded_freq_dict, cb_loaded_freq_dict, cr_loaded_freq_dict,
                                               "CPU");
 
     Mat Y_reconstructed_gpu, Cb_reconstructed_gpu, Cr_reconstructed_gpu;
@@ -207,28 +216,15 @@ int main(int argc, char *argv[])
                                                  y_rows_gpu, y_cols_gpu, cb_rows_gpu, cb_cols_gpu, cr_rows_gpu, cr_cols_gpu,
                                                  quantization_table_Y, quantization_table_CbCr,
                                                  Y_reconstructed_gpu, Cb_reconstructed_gpu, Cr_reconstructed_gpu,
-                                                 y_huffman_tree_gpu, cb_huffman_tree_gpu, cr_huffman_tree_gpu,
+                                                 y_loaded_freq_dict_gpu, cb_loaded_freq_dict_gpu, cr_loaded_freq_dict_gpu,
                                                  "GPU");
     Mat Y_reconstructed_omp, Cb_reconstructed_omp, Cr_reconstructed_omp;
     double modifiedTimeOMPForDecode = mainDecode(y_loaded_omp, cb_loaded_omp, cr_loaded_omp,
                                                  y_rows_omp, y_cols_omp, cb_rows_omp, cb_cols_omp, cr_rows_omp, cr_cols_omp,
                                                  quantization_table_Y, quantization_table_CbCr,
                                                  Y_reconstructed_omp, Cb_reconstructed_omp, Cr_reconstructed_omp,
-                                                 y_huffman_tree_omp, cb_huffman_tree_omp, cr_huffman_tree_omp,
+                                                 y_loaded_freq_dict_omp, cb_loaded_freq_dict_omp, cr_loaded_freq_dict_omp,
                                                  "OMP");
-
-    // Release dynamically allocated Huffman tree memory for CPU, GPU, and OMP
-    delete y_huffman_tree_cpu;
-    delete cb_huffman_tree_cpu;
-    delete cr_huffman_tree_cpu;
-
-    delete y_huffman_tree_gpu;
-    delete cb_huffman_tree_gpu;
-    delete cr_huffman_tree_gpu;
-
-    delete y_huffman_tree_omp;
-    delete cb_huffman_tree_omp;
-    delete cr_huffman_tree_omp;
 
     // Resize Cb and Cr channels to match the size of Y channel
     // resize(Cb_reconstructed, Cb_reconstructed, Y_reconstructed.size(), 0, 0, INTER_LINEAR);

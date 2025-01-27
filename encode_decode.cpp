@@ -402,15 +402,25 @@ struct Compare
 
 HuffmanNode *build_huffman_tree(const unordered_map<int, int> &freq_dict)
 {
-    priority_queue<HuffmanNode *, vector<HuffmanNode *>, Compare> min_heap;
+    // Convert unordered_map to vector of pairs
+    vector<pair<int, int>> freq_vector(freq_dict.begin(), freq_dict.end());
 
-    // Create a leaf node for each value and push it into the priority queue
-    for (const auto &pair : freq_dict)
+    // Sort by frequency, breaking ties by key (ascending order)
+    sort(freq_vector.begin(), freq_vector.end(), [](const pair<int, int> &a, const pair<int, int> &b)
+         {
+             if (a.second == b.second)
+                 return a.first < b.first; // Break ties by key
+             return a.second < b.second;   // Sort by frequency
+         });
+
+    // Create a priority queue (min-heap) and populate it with sorted elements
+    priority_queue<HuffmanNode *, vector<HuffmanNode *>, Compare> min_heap;
+    for (const auto &pair : freq_vector)
     {
         min_heap.push(new HuffmanNode(pair.first, pair.second));
     }
 
-    // Iterate until only one node remains in the priority queue
+    // Build the Huffman tree
     while (min_heap.size() > 1)
     {
         HuffmanNode *left = min_heap.top();
@@ -418,7 +428,7 @@ HuffmanNode *build_huffman_tree(const unordered_map<int, int> &freq_dict)
         HuffmanNode *right = min_heap.top();
         min_heap.pop();
 
-        // Create a new internal node with combined frequency
+        // Create an internal node with combined frequency
         HuffmanNode *internal = new HuffmanNode(99999, left->frequency + right->frequency);
         internal->left = left;
         internal->right = right;
@@ -427,7 +437,7 @@ HuffmanNode *build_huffman_tree(const unordered_map<int, int> &freq_dict)
         min_heap.push(internal);
     }
 
-    // The last node in the queue is the root of the Huffman tree
+    // Return the root of the Huffman tree
     return min_heap.top();
 }
 
@@ -1148,7 +1158,7 @@ void saveEncodedData(const string &filename,
         throw runtime_error("Cannot open file for writing: " + filename);
     }
 
-    // Write dimensions for each channel
+    // Write dimensions
     file.write(reinterpret_cast<const char *>(&y_rows), sizeof(int));
     file.write(reinterpret_cast<const char *>(&y_cols), sizeof(int));
     file.write(reinterpret_cast<const char *>(&cb_rows), sizeof(int));
@@ -1156,12 +1166,14 @@ void saveEncodedData(const string &filename,
     file.write(reinterpret_cast<const char *>(&cr_rows), sizeof(int));
     file.write(reinterpret_cast<const char *>(&cr_cols), sizeof(int));
 
-    // Convert Huffman strings to raw bitstreams
+    if (file.fail())
+        throw runtime_error("Error writing dimensions.");
+
+    // Write bitstreams
     vector<unsigned char> y_bitstream = stringToBitstream(y_data);
     vector<unsigned char> cb_bitstream = stringToBitstream(cb_data);
     vector<unsigned char> cr_bitstream = stringToBitstream(cr_data);
 
-    // Write the lengths of the bitstreams
     int y_len = y_bitstream.size();
     int cb_len = cb_bitstream.size();
     int cr_len = cr_bitstream.size();
@@ -1170,12 +1182,14 @@ void saveEncodedData(const string &filename,
     file.write(reinterpret_cast<const char *>(&cb_len), sizeof(int));
     file.write(reinterpret_cast<const char *>(&cr_len), sizeof(int));
 
-    // Write the raw bitstreams
     file.write(reinterpret_cast<const char *>(y_bitstream.data()), y_len);
     file.write(reinterpret_cast<const char *>(cb_bitstream.data()), cb_len);
     file.write(reinterpret_cast<const char *>(cr_bitstream.data()), cr_len);
 
-    // Write the frequency dictionaries
+    if (file.fail())
+        throw runtime_error("Error writing bitstreams.");
+
+    // Write frequency dictionaries
     int y_dict_size = y_freq_dict.size();
     int cb_dict_size = cb_freq_dict.size();
     int cr_dict_size = cr_freq_dict.size();
@@ -1189,6 +1203,21 @@ void saveEncodedData(const string &filename,
         file.write(reinterpret_cast<const char *>(&pair.first), sizeof(int));
         file.write(reinterpret_cast<const char *>(&pair.second), sizeof(int));
     }
+
+    for (const auto &pair : cb_freq_dict)
+    {
+        file.write(reinterpret_cast<const char *>(&pair.first), sizeof(int));
+        file.write(reinterpret_cast<const char *>(&pair.second), sizeof(int));
+    }
+
+    for (const auto &pair : cr_freq_dict)
+    {
+        file.write(reinterpret_cast<const char *>(&pair.first), sizeof(int));
+        file.write(reinterpret_cast<const char *>(&pair.second), sizeof(int));
+    }
+
+    if (file.fail())
+        throw runtime_error("Error writing frequency dictionaries.");
 
     file.close();
 }
@@ -1212,30 +1241,35 @@ void loadEncodedData(const string &filename,
     file.read(reinterpret_cast<char *>(&cr_rows), sizeof(int));
     file.read(reinterpret_cast<char *>(&cr_cols), sizeof(int));
 
-    // Read the lengths of the encoded strings
+    if (file.fail())
+        throw runtime_error("Error reading dimensions.");
+
+    // Read bitstreams
     int y_len, cb_len, cr_len;
     file.read(reinterpret_cast<char *>(&y_len), sizeof(int));
     file.read(reinterpret_cast<char *>(&cb_len), sizeof(int));
     file.read(reinterpret_cast<char *>(&cr_len), sizeof(int));
 
-    // Read the raw bitstream data
     vector<unsigned char> y_bitstream(y_len), cb_bitstream(cb_len), cr_bitstream(cr_len);
     file.read(reinterpret_cast<char *>(y_bitstream.data()), y_len);
     file.read(reinterpret_cast<char *>(cb_bitstream.data()), cb_len);
     file.read(reinterpret_cast<char *>(cr_bitstream.data()), cr_len);
 
-    file.close();
+    if (file.fail())
+        throw runtime_error("Error reading bitstreams.");
 
-    // Reconstruct the Huffman-encoded strings from bitstream
-    y_data = bitstreamToString(y_bitstream, y_len * 8); // 8 bits per byte
+    y_data = bitstreamToString(y_bitstream, y_len * 8);
     cb_data = bitstreamToString(cb_bitstream, cb_len * 8);
     cr_data = bitstreamToString(cr_bitstream, cr_len * 8);
 
-    // Read the frequency dictionaries
+    // Read frequency dictionaries
     int y_dict_size, cb_dict_size, cr_dict_size;
     file.read(reinterpret_cast<char *>(&y_dict_size), sizeof(int));
     file.read(reinterpret_cast<char *>(&cb_dict_size), sizeof(int));
     file.read(reinterpret_cast<char *>(&cr_dict_size), sizeof(int));
+
+    if (file.fail())
+        throw runtime_error("Error reading dictionary sizes.");
 
     for (int i = 0; i < y_dict_size; ++i)
     {
@@ -1260,6 +1294,11 @@ void loadEncodedData(const string &filename,
         file.read(reinterpret_cast<char *>(&value), sizeof(int));
         cr_freq_dict[key] = value;
     }
+
+    if (file.fail())
+        throw runtime_error("Error reading frequency dictionaries.");
+
+    file.close();
 }
 
 double mainEncode(const Mat &Y, const Mat &Cb, const Mat &Cr,
