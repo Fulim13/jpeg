@@ -189,15 +189,25 @@ struct Compare
 // Function to build the Huffman tree
 HuffmanNode *build_huffman_tree(const unordered_map<int, int> &freq_dict)
 {
-    priority_queue<HuffmanNode *, vector<HuffmanNode *>, Compare> min_heap;
+    // Convert unordered_map to vector of pairs
+    vector<pair<int, int>> freq_vector(freq_dict.begin(), freq_dict.end());
 
-    // Create a leaf node for each value and push it into the priority queue
-    for (const auto &pair : freq_dict)
+    // Sort by frequency, breaking ties by key (ascending order)
+    sort(freq_vector.begin(), freq_vector.end(), [](const pair<int, int> &a, const pair<int, int> &b)
+         {
+             if (a.second == b.second)
+                 return a.first < b.first; // Break ties by key
+             return a.second < b.second;   // Sort by frequency
+         });
+
+    // Create a priority queue (min-heap) and populate it with sorted elements
+    priority_queue<HuffmanNode *, vector<HuffmanNode *>, Compare> min_heap;
+    for (const auto &pair : freq_vector)
     {
         min_heap.push(new HuffmanNode(pair.first, pair.second));
     }
 
-    // Iterate until only one node remains in the priority queue
+    // Build the Huffman tree
     while (min_heap.size() > 1)
     {
         HuffmanNode *left = min_heap.top();
@@ -205,7 +215,7 @@ HuffmanNode *build_huffman_tree(const unordered_map<int, int> &freq_dict)
         HuffmanNode *right = min_heap.top();
         min_heap.pop();
 
-        // Create a new internal node with combined frequency
+        // Create an internal node with combined frequency
         HuffmanNode *internal = new HuffmanNode(99999, left->frequency + right->frequency);
         internal->left = left;
         internal->right = right;
@@ -214,7 +224,7 @@ HuffmanNode *build_huffman_tree(const unordered_map<int, int> &freq_dict)
         min_heap.push(internal);
     }
 
-    // The last node in the queue is the root of the Huffman tree
+    // Return the root of the Huffman tree
     return min_heap.top();
 }
 
