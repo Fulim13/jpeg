@@ -47,6 +47,7 @@ It includes a custom binary format for compressed data storage and tools to anal
   sudo apt-get install libopencv-dev
   ```
 - **CUDA Toolkit 11.0+** (for GPU acceleration)
+- 
   [Installation Guide](https://developer.nvidia.com/cuda-downloads)
 
   [WSL Installation](https://www.youtube.com/watch?v=JaHVsZa2jTc&ab_channel=NVIDIADeveloper)
