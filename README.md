@@ -50,6 +50,7 @@ It includes a custom binary format for compressed data storage and tools to anal
   [Installation Guide](https://developer.nvidia.com/cuda-downloads)
 
   [WSL Installation](https://www.youtube.com/watch?v=JaHVsZa2jTc&ab_channel=NVIDIADeveloper)
+
   _Note: Requires NVIDIA GPU with compatible drivers_
 
 - **GCC 9+** and **NVCC** (compilers)
@@ -95,7 +96,7 @@ It includes a custom binary format for compressed data storage and tools to anal
 ./main -q 90
 ```
 
-- **Input**: Images in `img/` (supports `.png`, `.tif`, `.jpg`)
+- **Input**: Images in `img/` (supports `.png`, `.tif`, `.jpg`, ...)
 - **Output**:
   - Compressed files: `output/*.bin`
   - Decompressed images: `output/decompress_image_{cpu,gpu,omp}.png`
@@ -105,9 +106,18 @@ It includes a custom binary format for compressed data storage and tools to anal
 
 ### Example Outputs
 
-| Original Image (1024×1024)               | CPU Decompressed (QF=50)                   | GPU Decompressed (QF=50)                   | OpenMP Decompressed (QF=50)                |
-| ---------------------------------------- | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ |
-| ![Original](img/lena_color_1024.tif.png) | ![CPU](output/decompress_image_cpu_50.png) | ![GPU](output/decompress_image_gpu_50.png) | ![OMP](output/decompress_image_omp_50.png) |
+| Original Image (1024×1024)           | CPU Decompressed (QF=50)                   | GPU Decompressed (QF=50)                   | OpenMP Decompressed (QF=50)                |
+| ------------------------------------ | ------------------------------------------ | ------------------------------------------ | ------------------------------------------ |
+| ![Original](img/lena_color_1024.tif) | ![CPU](output/decompress_image_cpu_50.png) | ![GPU](output/decompress_image_gpu_50.png) | ![OMP](output/decompress_image_omp_50.png) |
+
+### Compression Quality Comparison
+
+```bash
+# Generate quality comparison image
+python3 draw_diff_quality_image.py
+```
+
+![Quality Comparison](output/quality_comparison.png)
 
 ## Custom Binary Format
 
@@ -170,18 +180,18 @@ python3 metric_image_folder.py
 
 ```
 .
-├── img/                           # Sample images
-├── jpeg-concept/       		# Test JPEG encode/decode on small 8x8 blocks
-├── opencv-concept/     	# Test OpenCV Function
+├── img/                            # Sample images
+├── jpeg-concept/       		    # Test JPEG encode/decode on small 8x8 blocks
+├── opencv-concept/     	        # Test OpenCV Function
 ├── output/             		    # Compressed binaries and decompressed images
 ├── result/             		    # Analysis graphs and metrics
-├── analysis.cpp        		# Performance analysis tool
-├── main.cpp            		# Main compression/decompression program
+├── analysis.cpp        		    # Performance analysis tool
+├── main.cpp            		    # Main compression/decompression program
 ├── kernel.cu           		    # CUDA kernels functions
-├── image_resize.py     	# Image resizing utility
-├── metric_image_file.py             # Image resizing utility
-├── metric_image_folder.py         # Image resizing utility
-└── draw_diff_quality_image.py  # Quality factor comparison
+├── image_resize.py     	        # Image resizing utility
+├── metric_image_file.py            # Image resizing utility
+├── metric_image_folder.py          # Image resizing utility
+└── draw_diff_quality_image.py      # Quality factor comparison
 ```
 
 ## Contributing
