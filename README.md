@@ -17,6 +17,7 @@ A high-performance implementation of JPEG compression and decompression leveragi
 - [Custom Binary Format](#custom-binary-format)
 - [Performance Results](#performance-results)
 - [Analysis Tools](#analysis-tools)
+- [Documentation](#documentation)
 - [Project Structure](#project-structure)
 - [Contributing](#contributing)
 - [License](#license)
@@ -133,7 +134,9 @@ For this comparison between CUDA and OMP, we analyzed encoding gains, decoding g
 
 ![Encoding/Decoding Gains](result/file_size_vs_gains.png)
 
-- **GPU Encoding**: Up to 22x faster than CPU for large images (8192×8192)
+- **GPU Encoding**: Increases as the image dimensions grow
+- **OpenMP Encoding**: Consistent 9-10x speedup across all sizes
+- **GPU Decoding**: Between 18–22x faster than CPU for large images (8192×8192)
 - **OpenMP Decoding**: Consistent 8x speedup across all sizes
 
 ### Compression Ratio
@@ -170,6 +173,10 @@ python3 metric_image_folder.py
 ```
 
 ![alt text](readme_img/image-5.png)
+
+## Documentation
+[Report](docs/DSPC_JPEG_Report.pdf)
+[Slide](docs/DSPC_JPEG_Slide.pdf)
 
 ## Project Structure
 
