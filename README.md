@@ -136,7 +136,7 @@ For this comparison between CUDA and OMP, we analyzed encoding gains, decoding g
 
 - **GPU Encoding**: Increases as the image dimensions grow
 - **OpenMP Encoding**: Consistent 9-10x speedup across all sizes
-- **GPU Decoding**: Between 18–22x faster than CPU for large images (8192×8192)
+- **GPU Decoding**: Between 18–22x faster than CPU across all sizes
 - **OpenMP Decoding**: Consistent 8x speedup across all sizes
 
 ### Compression Ratio
