@@ -176,6 +176,7 @@ python3 metric_image_folder.py
 
 ## Documentation
 [Report](docs/DSPC_JPEG_Report.pdf)
+
 [Slide](docs/DSPC_JPEG_Slide.pdf)
 
 ## Project Structure
