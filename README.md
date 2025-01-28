@@ -92,7 +92,7 @@ It includes a custom binary format for compressed data storage and tools to anal
 # Default quality factor (50)
 ./main
 
-# Custom quality factor (e.g., 90)
+# Custom quality factor [Range From 1 - 100] (e.g., 90) 
 ./main -q 90
 ```
 
